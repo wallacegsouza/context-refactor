@@ -1,0 +1,9 @@
+.venv
+__pycache__/
+token-report/
+*.egg-info/
+analysis.json
+.pytest_cache/
+*.pyc
+.mypy_cache/
+.ruff_cache/
