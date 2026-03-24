@@ -1,5 +1,9 @@
 # ContextRefactor
 
+[![Test Suite](https://github.com/YOUR_ORG/context-refactor/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_ORG/context-refactor/actions/workflows/test.yml)
+[![Code Quality](https://github.com/YOUR_ORG/context-refactor/actions/workflows/quality.yml/badge.svg)](https://github.com/YOUR_ORG/context-refactor/actions/workflows/quality.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
 **Semantic, technology-aware codebase refactoring to fit inside a single LLM context window.**
 
 ContextRefactor analyses your project's token footprint using `token_report.py`, detects code smells and structural issues, and generates a step-by-step refactoring plan to reduce the codebase's effective size.
@@ -36,6 +40,61 @@ python3 -m venv .venv && source .venv/bin/activate
 
 # Install in editable mode (from repository root)
 pip install -e ".[dev,mcp]"
+```
+
+## Development
+
+### Running Tests Locally
+
+```bash
+# Install test dependencies
+pip install -e ".[dev,mcp]"
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=context_refactor --cov=mcp_server --cov=cli
+
+# Run specific test file
+pytest tests/test_analyzer.py -v
+
+# Run tests matching a pattern
+pytest tests/ -k "profile" -v
+```
+
+### Code Quality Checks
+
+```bash
+# Lint with ruff
+ruff check context_refactor tests cli mcp_server
+
+# Format check
+ruff format --check context_refactor tests cli mcp_server
+
+# Type check with mypy
+mypy context_refactor mcp_server cli --ignore-missing-imports
+```
+
+### Pre-commit Hook (Optional)
+
+Add this to `.git/hooks/pre-commit`:
+
+```bash
+#!/bin/bash
+set -e
+echo "Running linter..."
+ruff check context_refactor tests cli mcp_server
+echo "Running type checker..."
+mypy context_refactor mcp_server cli --ignore-missing-imports
+echo "Running tests..."
+pytest tests/ -q
+```
+
+Make it executable:
+
+```bash
+chmod +x .git/hooks/pre-commit
 ```
 
 ## CLI Usage
@@ -358,3 +417,60 @@ ContextRactor is a **fully autonomous product** and does not depend on any exter
 - **Clear error messages** for configuration mistakes
 
 For detailed information about architecture and design decisions, see [TUNING_GUIDE.md](TUNING_GUIDE.md) and [TOKEN_REPORT.md](TOKEN_REPORT.md).
+
+---
+
+## Continuous Integration
+
+All commits and pull requests are automatically tested via GitHub Actions:
+
+- **Test Suite** (`.github/workflows/test.yml`): Runs pytest on Python 3.11, 3.12, and 3.13
+- **Code Quality** (`.github/workflows/quality.yml`): Runs ruff linter and security scans
+- Validates clean installation in isolated virtual environments
+
+View workflow results on the [Actions](https://github.com/YOUR_ORG/context-refactor/actions) tab.
+
+### Local CI Checks
+
+Run all CI checks locally:
+
+```bash
+# Using make
+make ci
+
+# Or manually
+ruff check context_refactor tests cli mcp_server
+mypy context_refactor mcp_server cli --ignore-missing-imports
+pytest tests/ -v
+```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Development setup
+- Code quality guidelines
+- Testing requirements
+- PR process
+- How to add new refactor rules
+
+Quick start for contributors:
+
+```bash
+# Clone and setup
+git clone https://github.com/YOUR_ORG/context-refactor.git
+cd context-refactor
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,mcp]"
+
+# Run tests and quality checks
+make all
+```
+
+---
+
+## License
+
+MIT License — see LICENSE file for details.
