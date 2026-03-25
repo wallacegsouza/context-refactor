@@ -13,15 +13,15 @@ estimated impact.
 from __future__ import annotations
 
 import os
-from typing import Sequence
+from collections.abc import Sequence
 
+from .code_refactor import analyze_source_file
+from .markdown_refactor import analyze_markdown
 from .models import (
     FileCategory,
     FileTokenInfo,
     RefactorRecommendation,
 )
-from .markdown_refactor import analyze_markdown
-from .code_refactor import analyze_source_file
 
 
 def detect_refactor_candidates(

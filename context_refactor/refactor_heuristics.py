@@ -31,10 +31,10 @@ Usage example::
 from __future__ import annotations
 
 import os
-from typing import Sequence
+from collections.abc import Sequence
 
+from .code_refactor import analyze_source_file
 from .models import (
-    CodeSmell,
     ContextBudget,
     FileCategory,
     FileTokenInfo,
@@ -43,7 +43,6 @@ from .models import (
     RefactorPlan,
     RefactorRecommendation,
 )
-from .code_refactor import analyze_source_file
 from .refactor_planner import generate_refactor_plan
 from .refactor_rules import (
     DuplicateCodeRule,

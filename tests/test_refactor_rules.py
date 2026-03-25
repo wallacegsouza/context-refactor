@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -22,7 +20,6 @@ from context_refactor.refactor_rules import (
     LongMethodRule,
     RefactorRule,
 )
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -84,7 +81,7 @@ class TestLargeFileRule:
         assert rec.priority == Priority.HIGH
 
     def test_double_threshold_gives_critical(self, tmp_path: Path) -> None:
-        # threshold = 19 200; 2× = 38 400
+        # threshold = 19 200; 2x = 38 400
         rule = LargeFileRule(context_window_size=128_000, threshold_pct=0.15)
         fi = _make_file_info("file.py", tokens=38_400)
         recs = rule.evaluate(fi, str(tmp_path))

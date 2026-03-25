@@ -7,7 +7,6 @@ computes the overflow metrics.
 from __future__ import annotations
 
 import math
-from typing import Any
 
 from .models import ContextBudget
 
@@ -27,9 +26,9 @@ def compute_budget(
     total_files:
         Number of files scanned.
     llm_context_size:
-        Maximum tokens the target LLM supports (e.g. 128 000, 200 000).
+        Maximum tokens the target LLM supports (e.g. 128000, 200000).
     safety_margin:
-        Fraction of the context window to consider usable (0.0–1.0).
+        Fraction of the context window to consider usable (0.0-1.0).
         The remaining space is reserved for the system prompt, user query,
         and the model's response.
 

@@ -3,23 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
-
-import pytest
 
 from context_refactor.models import (
     CodeSmell,
     ContextBudget,
     FileCategory,
     FileTokenInfo,
-    Priority,
     RefactorPlan,
     RefactorRecommendation,
     RefactorTechnique,
 )
 from context_refactor.refactor_heuristics import HeuristicsEngine
 from context_refactor.refactor_rules.base import RefactorRule
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

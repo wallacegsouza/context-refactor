@@ -1,5 +1,22 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "git rm": true
+        "git rm": true,
+        "ruff": true,
+        "/^source \\.venv/bin/activate && ruff check context_refactor tests cli mcp_server 2>&1 \\| head -60$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^source \\.venv/bin/activate && ruff check context_refactor tests cli mcp_server 2>&1 \\| grep -E \"\\^\\(context_refactor\\|cli\\|tests\\|mcp_server\\)\" \\| head -20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -m pytest tests/ -v 2>&1 \\| tail -30$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -m cli\\.main --help 2>&1 \\| head -20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

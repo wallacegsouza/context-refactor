@@ -82,7 +82,7 @@ class DuplicateCodeRule(RefactorRule):
                 priority=Priority.MEDIUM,
                 description=(
                     f"Found {len(duplicates)} repeated code block(s) "
-                    f"(worst: {worst_count}× occurrences, window={_WINDOW} lines).  "
+                    f"(worst: {worst_count}x occurrences, window={_WINDOW} lines).  "
                     f"Extract to shared helper functions or a utility module."
                 ),
                 estimated_token_reduction=int(file_info.tokens * 0.10),

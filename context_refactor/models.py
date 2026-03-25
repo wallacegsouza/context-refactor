@@ -10,11 +10,10 @@ import enum
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ── Enumerations ──────────────────────────────────────────────────────────────
 
 
-class FileCategory(str, enum.Enum):
+class FileCategory(enum.StrEnum):
     """High-level file classification used to route analysis."""
 
     SOURCE_CODE = "source_code"
@@ -24,7 +23,7 @@ class FileCategory(str, enum.Enum):
     OTHER = "other"
 
 
-class CodeSmell(str, enum.Enum):
+class CodeSmell(enum.StrEnum):
     """Detectable code smells (subset of Fowler / refactoring.guru catalog)."""
 
     LONG_METHOD = "Long Method"
@@ -37,7 +36,7 @@ class CodeSmell(str, enum.Enum):
     POOR_NAMING = "Poor Naming"
 
 
-class RefactorTechnique(str, enum.Enum):
+class RefactorTechnique(enum.StrEnum):
     """Refactoring techniques from https://refactoring.guru/refactoring/techniques."""
 
     EXTRACT_METHOD = "Extract Method"
@@ -53,7 +52,7 @@ class RefactorTechnique(str, enum.Enum):
     RENAME_VARIABLE = "Rename Variable"
 
 
-class Priority(str, enum.Enum):
+class Priority(enum.StrEnum):
     """Priority level for refactoring recommendations."""
 
     CRITICAL = "critical"

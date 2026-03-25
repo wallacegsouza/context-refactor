@@ -17,16 +17,16 @@ pointing to this module.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
-import asyncio
 
 # Try to use the official ``mcp`` SDK.  If it isn't installed yet, fall back
 # to a minimal stdin/stdout JSON-RPC loop so the project is still functional.
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool, TextContent
+    from mcp.types import TextContent, Tool
 
     _HAS_MCP_SDK = True
 except ImportError:
@@ -35,9 +35,9 @@ except ImportError:
 from mcp_server.tools import (
     analyze_project,
     context_budget,
+    detect_code_smells,
     detect_refactor_candidates_tool,
     generate_refactor_plan_tool,
-    detect_code_smells,
     generate_refactor_suggestions,
 )
 
@@ -92,7 +92,7 @@ def _analysis_scope_properties() -> dict[str, dict]:
 # MCP SDK path (preferred)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _build_mcp_server() -> "Server":
+def _build_mcp_server() -> Server:
     """Construct an MCP ``Server`` with all four tools registered."""
     server = Server("context-refactor")
 

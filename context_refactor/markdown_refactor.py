@@ -6,10 +6,8 @@ large documents into per-topic files with an index document linking them.
 
 from __future__ import annotations
 
-import os
 import re
 import unicodedata
-from typing import Sequence
 
 from .models import (
     CodeSmell,
@@ -67,7 +65,6 @@ def detect_sections(filepath: str) -> list[MarkdownSection]:
         return []
 
     sections: list[MarkdownSection] = []
-    base_dir = os.path.dirname(filepath)
 
     for i, (level, start, text) in enumerate(headings):
         if level > _SPLIT_MAX_LEVEL:

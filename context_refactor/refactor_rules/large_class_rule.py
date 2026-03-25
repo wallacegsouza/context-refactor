@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+from ..code_refactor import _analyze_generic, _analyze_python  # type: ignore[attr-defined]
 from ..models import (
     CodeSmell,
     FileCategory,
@@ -12,7 +13,6 @@ from ..models import (
     RefactorRecommendation,
     RefactorTechnique,
 )
-from ..code_refactor import _analyze_python, _analyze_generic  # type: ignore[attr-defined]
 from .base import RefactorRule
 
 
@@ -65,7 +65,6 @@ class LargeClassRule(RefactorRule):
         if ext == ".py":
             _, classes = _analyze_python(abs_path, source)
         else:
-            lines = source.splitlines()
             _, classes = _analyze_generic(abs_path, source, ext)
 
         recommendations: list[RefactorRecommendation] = []

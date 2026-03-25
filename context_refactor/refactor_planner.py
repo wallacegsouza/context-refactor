@@ -14,13 +14,10 @@ a fixed priority ladder:
 from __future__ import annotations
 
 from collections import defaultdict
-from itertools import groupby
-from typing import Sequence
+from collections.abc import Sequence
 
 from .models import (
-    CodeSmell,
     ContextBudget,
-    Priority,
     RefactorPlan,
     RefactorRecommendation,
     RefactorStep,
@@ -89,11 +86,9 @@ def generate_refactor_plan(
         buckets[order].append(rec)
 
     steps: list[RefactorStep] = []
-    step_number = 0
 
-    for order_key in sorted(buckets):
+    for step_number, order_key in enumerate(sorted(buckets), start=1):
         recs = buckets[order_key]
-        step_number += 1
 
         # Collect unique affected files and techniques
         affected: list[str] = sorted({r.file_path for r in recs})

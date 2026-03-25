@@ -11,7 +11,6 @@ from typing import Any
 
 from context_refactor.analyzer import analyze_tokens
 from context_refactor.context_budget import compute_budget
-from context_refactor.models import ContextBudget, FileTokenInfo
 from context_refactor.refactor_engine import detect_refactor_candidates
 from context_refactor.refactor_planner import generate_refactor_plan
 

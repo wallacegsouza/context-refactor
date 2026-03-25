@@ -26,17 +26,15 @@ from pathlib import Path
 
 try:
     import typer
-except ImportError:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+except ImportError as err:
     sys.stderr.write(
-        "typer is required for the CLI.  Install with:\n"
+        "typer and rich are required for the CLI. Install with:\n"
         "  pip install typer[all]\n"
     )
-    raise SystemExit(1)
-
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich import print as rprint
+    raise SystemExit(1) from err
 
 app = typer.Typer(
     name="context-refactor",
@@ -591,13 +589,14 @@ def plan(
         for line in step["description"].split("\n")[:5]:
             console.print(f"  {line}")
         if len(step["description"].split("\n")) > 5:
-            console.print(f"  … (truncated)")
+            console.print("  … (truncated)")
 
 
 @app.command()
 def serve() -> None:
     """Start the MCP server (stdio transport)."""
     import asyncio
+
     from mcp_server.server import run_server
 
     asyncio.run(run_server())

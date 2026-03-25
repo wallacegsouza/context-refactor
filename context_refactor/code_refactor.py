@@ -12,7 +12,6 @@ from __future__ import annotations
 import ast
 import os
 import re
-from typing import Sequence
 
 from .models import (
     ClassInfo,
@@ -51,11 +50,10 @@ def _python_functions(tree: ast.AST) -> list[FunctionInfo]:
             # Simple nesting depth: count enclosing function-defs
             depth = 0
             for parent in ast.walk(tree):
-                if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if parent is not node and hasattr(parent, "lineno"):
-                        p_end = parent.end_lineno or parent.lineno
-                        if parent.lineno <= start and p_end >= end:
-                            depth += 1
+                if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)) and parent is not node and hasattr(parent, "lineno"):
+                    p_end = parent.end_lineno or parent.lineno
+                    if parent.lineno <= start and p_end >= end:
+                        depth += 1
             funcs.append(
                 FunctionInfo(
                     name=node.name,
