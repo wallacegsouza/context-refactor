@@ -37,7 +37,7 @@ jobs:
       
       - name: Run pytest
         run: |
-          pytest tests/ -v --tb=short --cov=context_refactor --cov=mcp_server --cov=cli
+          python -m pytest tests/ -v --tb=short --cov=context_refactor --cov=mcp_server --cov=cli
       
       - name: Validate CLI entry point
         run: |
