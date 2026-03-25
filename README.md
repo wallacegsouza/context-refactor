@@ -1,7 +1,7 @@
 # ContextRefactor
 
-[![Test Suite](https://github.com/YOUR_ORG/context-refactor/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_ORG/context-refactor/actions/workflows/test.yml)
-[![Code Quality](https://github.com/YOUR_ORG/context-refactor/actions/workflows/quality.yml/badge.svg)](https://github.com/YOUR_ORG/context-refactor/actions/workflows/quality.yml)
+[![Test Suite](https://github.com/wallacegsouza/context-refactor/actions/workflows/test.yml/badge.svg)](https://github.com/wallacegsouza/context-refactor/actions/workflows/test.yml)
+[![Code Quality](https://github.com/wallacegsouza/context-refactor/actions/workflows/quality.yml/badge.svg)](https://github.com/wallacegsouza/context-refactor/actions/workflows/quality.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 **Semantic, technology-aware codebase refactoring to fit inside a single LLM context window.**
