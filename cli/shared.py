@@ -77,6 +77,49 @@ def dependency_options(
     }
 
 
+def build_tool_kwargs(
+    project_path: str,
+    profile: str,
+    config_path: str | None,
+    exclude_dirs: str | None,
+    exclude_globs: str | None,
+    exclude_files: str | None,
+    include_categories: str | None,
+    exclude_categories: str | None,
+    dependency_mode: str | None,
+    dependency_max_depth: int | None,
+    dependency_max_multiplier: float | None,
+    dependency_base_weight: float | None,
+    dependency_depth_decay: float | None,
+    dependency_depth_weights: str | None,
+) -> dict[str, object]:
+    return {
+        "project_path": resolve_path(project_path),
+        **analysis_options(
+            profile=profile,
+            config_path=config_path,
+            exclude_dirs=exclude_dirs,
+            exclude_globs=exclude_globs,
+            exclude_files=exclude_files,
+            include_categories=include_categories,
+            exclude_categories=exclude_categories,
+        ),
+        **dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
+    }
+
+
+def print_analysis_context(result: dict[str, Any]) -> None:
+    print_analysis_scope(result)
+    print_dependency_summary(result)
+
+
 def print_analysis_scope(result: dict[str, Any]) -> None:
     scope = result.get("analysis_scope") or {}
     if not scope:

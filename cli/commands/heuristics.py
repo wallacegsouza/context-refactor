@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from ..options import (
     config_path_option,
     context_size_option,
@@ -25,20 +23,19 @@ from ..options import (
     safety_margin_option,
     top_n_option,
 )
-from ..runtime import Panel, Table, console, typer
-from ..shared import (
-    analysis_options,
-    dependency_options,
-    human,
-    print_analysis_scope,
-    print_dependency_summary,
-    print_json,
-    resolve_path,
+from ..rendering import (
+    print_code_smell_results,
+    print_heuristic_results,
+    print_heuristics_state,
+    print_plan_overview,
 )
-
-
-def _dependency_enabled(result: dict[str, Any]) -> bool:
-    return bool(result.get("dependency_analysis", {}).get("enabled"))
+from ..runtime import console, typer
+from ..shared import (
+    build_tool_kwargs,
+    human,
+    print_analysis_context,
+    print_json,
+)
 
 
 def register_heuristics_commands(app: typer.Typer) -> None:
@@ -66,13 +63,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
         """Detect code smells using the Heuristics Engine (pluggable rules)."""
         from mcp_server.tools import detect_code_smells
 
-        path = resolve_path(project_path)
         result = detect_code_smells(
-            project_path=path,
             llm_context_size=context_size,
             estimator=estimator,
             top_n=top_n,
-            **analysis_options(
+            **build_tool_kwargs(
+                project_path=project_path,
                 profile=profile,
                 config_path=config_path,
                 exclude_dirs=exclude_dirs,
@@ -80,14 +76,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
                 exclude_files=exclude_files,
                 include_categories=include_categories,
                 exclude_categories=exclude_categories,
-            ),
-            **dependency_options(
-                mode=dependency_mode,
-                max_depth=dependency_max_depth,
-                max_multiplier=dependency_max_multiplier,
-                base_weight=dependency_base_weight,
-                depth_decay=dependency_depth_decay,
-                depth_weights=dependency_depth_weights,
+                dependency_mode=dependency_mode,
+                dependency_max_depth=dependency_max_depth,
+                dependency_max_multiplier=dependency_max_multiplier,
+                dependency_base_weight=dependency_base_weight,
+                dependency_depth_decay=dependency_depth_decay,
+                dependency_depth_weights=dependency_depth_weights,
             ),
         )
 
@@ -95,33 +89,8 @@ def register_heuristics_commands(app: typer.Typer) -> None:
             print_json(result)
             return
 
-        print_analysis_scope(result)
-        print_dependency_summary(result)
-        console.print(f"\n[bold]Files scanned:[/] {human(result['total_files_scanned'])}")
-        console.print(f"[bold]Files with smells:[/] {result['files_with_smells']}\n")
-
-        table = Table(title="Code Smell Results", show_lines=True)
-        table.add_column("File", max_width=55, style="cyan")
-        table.add_column("Tokens", justify="right", style="yellow")
-        if _dependency_enabled(result):
-            table.add_column("Effective", justify="right", style="green")
-        table.add_column("Language", width=12, style="magenta")
-        table.add_column("Problems", max_width=35)
-        table.add_column("Top Suggestions", max_width=45)
-
-        for file_result in result["results"][:top_n]:
-            row = [file_result["file"], human(file_result["tokens"])]
-            if _dependency_enabled(result):
-                row.append(human(file_result.get("effective_token_size", file_result["tokens"])))
-            row.extend(
-                [
-                    file_result["language"],
-                    ", ".join(file_result["problems"][:3]) or "—",
-                    "; ".join(file_result["suggested_refactors"][:2]) or "—",
-                ]
-            )
-            table.add_row(*row)
-        console.print(table)
+        print_analysis_context(result)
+        print_code_smell_results(result, top_n)
 
     @app.command()
     def suggest(
@@ -147,13 +116,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
         """Generate refactoring suggestions using the Heuristics Engine."""
         from mcp_server.tools import generate_refactor_suggestions
 
-        path = resolve_path(project_path)
         result = generate_refactor_suggestions(
-            project_path=path,
             llm_context_size=context_size,
             safety_margin=safety_margin,
             estimator=estimator,
-            **analysis_options(
+            **build_tool_kwargs(
+                project_path=project_path,
                 profile=profile,
                 config_path=config_path,
                 exclude_dirs=exclude_dirs,
@@ -161,14 +129,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
                 exclude_files=exclude_files,
                 include_categories=include_categories,
                 exclude_categories=exclude_categories,
-            ),
-            **dependency_options(
-                mode=dependency_mode,
-                max_depth=dependency_max_depth,
-                max_multiplier=dependency_max_multiplier,
-                base_weight=dependency_base_weight,
-                depth_decay=dependency_depth_decay,
-                depth_weights=dependency_depth_weights,
+                dependency_mode=dependency_mode,
+                dependency_max_depth=dependency_max_depth,
+                dependency_max_multiplier=dependency_max_multiplier,
+                dependency_base_weight=dependency_base_weight,
+                dependency_depth_decay=dependency_depth_decay,
+                dependency_depth_weights=dependency_depth_weights,
             ),
         )
 
@@ -178,54 +144,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
 
         budget_info = result["context_budget"]
         plan_info = result["refactor_plan"]
-        print_analysis_scope(result)
-        print_dependency_summary(result)
+        print_analysis_context(result)
+        print_heuristics_state(budget_info)
+        print_heuristic_results(result)
 
-        fits = "[green]YES[/]" if budget_info["fits_context"] else "[red]NO[/]"
-        console.print(
-            Panel(
-                f"[bold]Tokens:[/] {human(budget_info['total_tokens'])}   "
-                f"[bold]Budget:[/] {human(budget_info['context_budget'])}   "
-                f"[bold]Fits now:[/] {fits}",
-                title="Heuristics Engine - Current State",
-                border_style="cyan",
-            )
-        )
-
-        heuristic_results = result.get("heuristic_results", [])
-        if heuristic_results:
-            table = Table(
-                title=f"Files with Issues ({len(heuristic_results)} found)",
-                show_lines=False,
-            )
-            table.add_column("File", max_width=55, style="cyan")
-            table.add_column("Tokens", justify="right", style="yellow")
-            if _dependency_enabled(result):
-                table.add_column("Effective", justify="right", style="green")
-            table.add_column("Problems", max_width=40)
-            for heuristic_result in heuristic_results[:15]:
-                row = [heuristic_result["file"], human(heuristic_result["tokens"])]
-                if _dependency_enabled(result):
-                    row.append(human(heuristic_result.get("effective_token_size", heuristic_result["tokens"])))
-                row.append(", ".join(heuristic_result["problems"][:2]) or "—")
-                table.add_row(*row)
-            console.print(table)
-
-        if not plan_info.get("steps"):
-            console.print("\n[green]No refactoring needed - project fits the context window.[/]")
+        if not print_plan_overview(plan_info):
             return
-
-        after_fits = "[green]YES[/]" if plan_info["fits_context_after"] else "[red]NO[/]"
-        console.print(
-            Panel(
-                f"[bold]Steps:[/] {len(plan_info['steps'])}   "
-                f"[bold]Est. reduction:[/] {human(plan_info['total_estimated_token_reduction'])} tokens   "
-                f"[bold]Projected after:[/] {human(plan_info['projected_tokens_after'])} tokens   "
-                f"[bold]Fits after:[/] {after_fits}",
-                title="Refactoring Plan",
-                border_style="green",
-            )
-        )
 
         for step in plan_info["steps"]:
             console.print(f"\n[bold cyan]Step {step['step_number']}. {step['title']}[/]")
@@ -260,13 +184,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
         """Generate a step-by-step refactoring plan."""
         from mcp_server.tools import generate_refactor_plan_tool
 
-        path = resolve_path(project_path)
         result = generate_refactor_plan_tool(
-            project_path=path,
             llm_context_size=context_size,
             safety_margin=safety_margin,
             estimator=estimator,
-            **analysis_options(
+            **build_tool_kwargs(
+                project_path=project_path,
                 profile=profile,
                 config_path=config_path,
                 exclude_dirs=exclude_dirs,
@@ -274,14 +197,12 @@ def register_heuristics_commands(app: typer.Typer) -> None:
                 exclude_files=exclude_files,
                 include_categories=include_categories,
                 exclude_categories=exclude_categories,
-            ),
-            **dependency_options(
-                mode=dependency_mode,
-                max_depth=dependency_max_depth,
-                max_multiplier=dependency_max_multiplier,
-                base_weight=dependency_base_weight,
-                depth_decay=dependency_depth_decay,
-                depth_weights=dependency_depth_weights,
+                dependency_mode=dependency_mode,
+                dependency_max_depth=dependency_max_depth,
+                dependency_max_multiplier=dependency_max_multiplier,
+                dependency_base_weight=dependency_base_weight,
+                dependency_depth_decay=dependency_depth_decay,
+                dependency_depth_weights=dependency_depth_weights,
             ),
         )
 
@@ -291,35 +212,11 @@ def register_heuristics_commands(app: typer.Typer) -> None:
 
         budget_info = result["context_budget"]
         plan_info = result["refactor_plan"]
-        print_analysis_scope(result)
-        print_dependency_summary(result)
+        print_analysis_context(result)
+        print_heuristics_state(budget_info, title="Current State")
 
-        fits = "[green]YES[/]" if budget_info["fits_context"] else "[red]NO[/]"
-        console.print(
-            Panel(
-                f"[bold]Tokens:[/] {human(budget_info['total_tokens'])}   "
-                f"[bold]Budget:[/] {human(budget_info['context_budget'])}   "
-                f"[bold]Fits now:[/] {fits}",
-                title="Current State",
-                border_style="cyan",
-            )
-        )
-
-        if not plan_info.get("steps"):
-            console.print("\n[green]No refactoring needed - project fits the context window.[/]")
+        if not print_plan_overview(plan_info):
             return
-
-        after_fits = "[green]YES[/]" if plan_info["fits_context_after"] else "[red]NO[/]"
-        console.print(
-            Panel(
-                f"[bold]Steps:[/] {len(plan_info['steps'])}   "
-                f"[bold]Est. reduction:[/] {human(plan_info['total_estimated_token_reduction'])} tokens   "
-                f"[bold]Projected after:[/] {human(plan_info['projected_tokens_after'])} tokens   "
-                f"[bold]Fits after:[/] {after_fits}",
-                title="Refactoring Plan",
-                border_style="green",
-            )
-        )
 
         for step in plan_info["steps"]:
             console.print(f"\n[bold cyan]Step {step['step_number']}. {step['title']}[/]")
