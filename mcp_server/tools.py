@@ -57,6 +57,11 @@ def _dependency_kwargs(
     }
 
 
+def _dependency_rules_enabled(totals: dict[str, Any]) -> bool:
+    mode = totals.get("dependency_analysis", {}).get("mode")
+    return mode in {"blended", "weighted"}
+
+
 # ── Tool 1: analyze_project ──────────────────────────────────────────────────
 
 
@@ -118,7 +123,11 @@ def analyze_project(
         safety_margin=safety_margin,
     )
 
-    recommendations = detect_refactor_candidates(all_files, project_path)
+    recommendations = detect_refactor_candidates(
+        all_files,
+        project_path,
+        enable_dependency_rules=_dependency_rules_enabled(totals),
+    )
     plan = generate_refactor_plan(recommendations, budget)
 
     return {
@@ -259,7 +268,11 @@ def detect_refactor_candidates_tool(
             dependency_depth_weights=dependency_depth_weights,
         ),
     )
-    recommendations = detect_refactor_candidates(file_infos, project_path)
+    recommendations = detect_refactor_candidates(
+        file_infos,
+        project_path,
+        enable_dependency_rules=_dependency_rules_enabled(totals),
+    )
 
     return {
         "report_schema_version": totals.get("report_schema_version", 1),
@@ -336,7 +349,11 @@ def generate_refactor_plan_tool(
         safety_margin=safety_margin,
     )
 
-    recommendations = detect_refactor_candidates(file_infos, project_path)
+    recommendations = detect_refactor_candidates(
+        file_infos,
+        project_path,
+        enable_dependency_rules=_dependency_rules_enabled(totals),
+    )
     plan = generate_refactor_plan(recommendations, budget)
 
     return {
