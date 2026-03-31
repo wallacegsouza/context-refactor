@@ -101,3 +101,69 @@ def test_explicit_profile_overrides_repo_config_profile(tmp_path) -> None:
 
     assert totals["analysis_scope"]["profile"] == "source-only"
     assert [info.path for info in file_infos] == ["src/app.ts"]
+
+
+def test_dependency_analysis_enriches_source_files_when_enabled(tmp_path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text(
+        "import json\nimport src.b as b\n\ndef run():\n    return b.answer()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "src" / "b.py").write_text(
+        "import src.c as c\n\ndef answer():\n    return c.VALUE\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "src" / "c.py").write_text("VALUE = 42\n", encoding="utf-8")
+
+    file_infos, _, totals = analyze_tokens(
+        str(tmp_path),
+        estimator="bytes",
+        top_n=10,
+        dependency_mode="report_only",
+        dependency_max_depth=3,
+    )
+
+    by_path = {info.path: info for info in file_infos}
+    a_info = by_path["src/a.py"]
+
+    assert totals["dependency_analysis"]["enabled"] is True
+    assert totals["dependency_analysis"]["mode"] == "report_only"
+    assert totals["dependency_analysis"]["dependency_metrics_version"] == 1
+    assert totals["report_schema_version"] == 2
+    assert totals["compatibility_mode"] == "report_only"
+    assert totals["dependency_analysis"]["effective_tokens"] >= totals["tokens"]
+    assert a_info.direct_dependencies_count >= 2
+    assert a_info.direct_internal_dependencies_count >= 1
+    assert a_info.direct_external_dependencies_count >= 1
+    assert a_info.transitive_dependencies_count >= 1
+    assert a_info.effective_token_size >= a_info.tokens
+    assert a_info.refactor_priority_score > 0.0
+
+
+def test_dependency_analysis_resolves_python_from_import_submodule(tmp_path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "src" / "a.py").write_text(
+        "from src import b\n\ndef run():\n    return b.answer()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "src" / "b.py").write_text(
+        "from src import c\n\ndef answer():\n    return c.VALUE\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "src" / "c.py").write_text("VALUE = 42\n", encoding="utf-8")
+
+    file_infos, _, totals = analyze_tokens(
+        str(tmp_path),
+        estimator="bytes",
+        top_n=10,
+        dependency_mode="report_only",
+        dependency_max_depth=3,
+    )
+
+    by_path = {info.path: info for info in file_infos}
+    a_info = by_path["src/a.py"]
+
+    assert totals["dependency_analysis"]["enabled"] is True
+    assert a_info.direct_internal_dependencies_count >= 1
+    assert a_info.transitive_dependencies_count >= 1

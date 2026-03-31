@@ -46,6 +46,7 @@ from .models import (
 from .refactor_planner import generate_refactor_plan
 from .refactor_rules import (
     DuplicateCodeRule,
+    HighCouplingRule,
     LargeClassRule,
     LargeFileRule,
     LongMethodRule,
@@ -180,13 +181,16 @@ class HeuristicsEngine:
         self,
         context_window_size: int = 128_000,
         extra_rules: list[RefactorRule] | None = None,
+        rank_by_dependency: bool = False,
     ) -> None:
         self._context_window_size = context_window_size
+        self._rank_by_dependency = rank_by_dependency
         self._rules: list[RefactorRule] = [
             LargeFileRule(context_window_size=context_window_size),
             LongMethodRule(threshold_lines=80),
             LargeClassRule(threshold_lines=500, threshold_methods=20),
             DuplicateCodeRule(),
+            HighCouplingRule(),
         ]
         if extra_rules:
             self._rules.extend(extra_rules)
@@ -244,6 +248,11 @@ class HeuristicsEngine:
             problems=_extract_problems(recommendations),
             suggested_refactors=_extract_suggestions(recommendations),
             recommendations=recommendations,
+            dependency_weight=file_info.dependency_weight,
+            effective_token_size=file_info.effective_token_size,
+            refactor_priority_score=file_info.refactor_priority_score,
+            fan_in=file_info.fan_in,
+            fan_out=file_info.fan_out,
         )
 
     def analyze_project(
@@ -269,7 +278,17 @@ class HeuristicsEngine:
             if result.recommendations:
                 results.append(result)
 
-        results.sort(key=lambda r: r.tokens, reverse=True)
+        if self._rank_by_dependency:
+            results.sort(
+                key=lambda r: (
+                    r.refactor_priority_score,
+                    r.effective_token_size,
+                    r.tokens,
+                ),
+                reverse=True,
+            )
+        else:
+            results.sort(key=lambda r: r.tokens, reverse=True)
         return results
 
     def generate_plan(

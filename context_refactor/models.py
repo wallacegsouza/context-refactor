@@ -34,6 +34,7 @@ class CodeSmell(enum.StrEnum):
     GOD_FILE = "God File"
     MIXED_RESPONSIBILITIES = "Mixed Responsibilities"
     POOR_NAMING = "Poor Naming"
+    HIGH_COUPLING = "High Coupling"
 
 
 class RefactorTechnique(enum.StrEnum):
@@ -50,6 +51,8 @@ class RefactorTechnique(enum.StrEnum):
     SPLIT_DOCUMENT = "Split Document"
     EXTRACT_MODULE = "Extract Module"
     RENAME_VARIABLE = "Rename Variable"
+    INVERT_DEPENDENCY = "Invert Dependency"
+    INTRODUCE_INTERFACE = "Introduce Interface"
 
 
 class Priority(enum.StrEnum):
@@ -59,6 +62,23 @@ class Priority(enum.StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
+
+class DependencyKind(enum.StrEnum):
+    """Classification of a dependency relationship."""
+
+    IMPORT = "import"
+    INHERITANCE = "inheritance"
+    COMPOSITION = "composition"
+    TYPE_USAGE = "type_usage"
+    DECORATOR = "decorator"
+
+
+class DependencyScope(enum.StrEnum):
+    """Whether a dependency is internal to the project or external."""
+
+    INTERNAL = "internal"
+    EXTERNAL = "external"
 
 
 # ── File / Token Info ─────────────────────────────────────────────────────────
@@ -74,9 +94,19 @@ class FileTokenInfo:
     bytes_: int
     chars: int
     category: FileCategory = FileCategory.OTHER
+    direct_dependencies_count: int = 0
+    direct_internal_dependencies_count: int = 0
+    direct_external_dependencies_count: int = 0
+    transitive_dependencies_count: int = 0
+    dependency_depth_analyzed: int = 0
+    dependency_weight: float = 1.0
+    effective_token_size: int = 0
+    refactor_priority_score: float = 0.0
+    fan_in: int = 0
+    fan_out: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "path": self.path,
             "ext": self.ext,
             "tokens": self.tokens,
@@ -84,6 +114,18 @@ class FileTokenInfo:
             "chars": self.chars,
             "category": self.category.value,
         }
+        if self.effective_token_size > 0:
+            result["direct_dependencies_count"] = self.direct_dependencies_count
+            result["direct_internal_dependencies_count"] = self.direct_internal_dependencies_count
+            result["direct_external_dependencies_count"] = self.direct_external_dependencies_count
+            result["transitive_dependencies_count"] = self.transitive_dependencies_count
+            result["dependency_depth_analyzed"] = self.dependency_depth_analyzed
+            result["dependency_weight"] = round(self.dependency_weight, 4)
+            result["effective_token_size"] = self.effective_token_size
+            result["refactor_priority_score"] = round(self.refactor_priority_score, 4)
+            result["fan_in"] = self.fan_in
+            result["fan_out"] = self.fan_out
+        return result
 
 
 @dataclass(frozen=True)
@@ -169,6 +211,116 @@ class MarkdownSection:
     end_line: int
     line_count: int
     suggested_filename: str
+
+
+# ── Dependency Analysis ──────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class DependencyEdge:
+    """A single dependency relationship from source to target."""
+
+    source_file: str
+    target_module: str
+    target_file: str | None  # None if external
+    kind: DependencyKind
+    scope: DependencyScope
+    symbol: str
+    line_number: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_file": self.source_file,
+            "target_module": self.target_module,
+            "target_file": self.target_file,
+            "kind": self.kind.value,
+            "scope": self.scope.value,
+            "symbol": self.symbol,
+            "line_number": self.line_number,
+        }
+
+
+@dataclass(frozen=True)
+class FileDependencyInfo:
+    """Aggregated dependency metrics for a single file."""
+
+    file_path: str
+    direct_dependencies: list[DependencyEdge]
+    direct_dependents: list[DependencyEdge]
+    fan_out: int
+    fan_in: int
+    internal_dependency_count: int
+    external_dependency_count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "file_path": self.file_path,
+            "fan_out": self.fan_out,
+            "fan_in": self.fan_in,
+            "internal_dependencies": self.internal_dependency_count,
+            "external_dependencies": self.external_dependency_count,
+            "direct_dependencies_count": len(self.direct_dependencies),
+            "direct_dependents_count": len(self.direct_dependents),
+        }
+
+
+@dataclass(frozen=True)
+class DependencyWeightResult:
+    """Computed dependency weight for a file, combining token size with coupling."""
+
+    file_path: str
+    tokens: int
+    direct_dependencies_count: int
+    direct_internal_dependencies_count: int
+    direct_external_dependencies_count: int
+    transitive_dependencies_count: int
+    dependency_depth_analyzed: int
+    fan_in: int
+    fan_out: int
+    dependency_weight: float
+    effective_token_size: int
+    refactor_priority_score: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "file_path": self.file_path,
+            "tokens": self.tokens,
+            "direct_dependencies_count": self.direct_dependencies_count,
+            "direct_internal_dependencies_count": self.direct_internal_dependencies_count,
+            "direct_external_dependencies_count": self.direct_external_dependencies_count,
+            "transitive_dependencies_count": self.transitive_dependencies_count,
+            "dependency_depth_analyzed": self.dependency_depth_analyzed,
+            "fan_in": self.fan_in,
+            "fan_out": self.fan_out,
+            "dependency_weight": round(self.dependency_weight, 4),
+            "effective_token_size": self.effective_token_size,
+            "refactor_priority_score": round(self.refactor_priority_score, 4),
+        }
+
+
+@dataclass
+class DependencyGraph:
+    """Project-wide dependency graph built from import analysis."""
+
+    edges: list[DependencyEdge]
+    file_infos: dict[str, FileDependencyInfo]
+    adjacency: dict[str, set[str]]
+    reverse_adjacency: dict[str, set[str]]
+    cycle_groups: list[set[str]]
+    total_files: int
+    total_edges: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "total_files": self.total_files,
+            "total_edges": self.total_edges,
+            "cycle_groups_count": len(self.cycle_groups),
+            "cycle_groups": [sorted(g) for g in self.cycle_groups],
+            "files": {
+                path: info.to_dict()
+                for path, info in self.file_infos.items()
+            },
+        }
 
 
 # ── Refactoring Recommendations ──────────────────────────────────────────────
@@ -278,9 +430,15 @@ class HeuristicResult:
     problems: list[str]
     suggested_refactors: list[str]
     recommendations: list[RefactorRecommendation]
+    # Dependency analysis fields (backward-compatible defaults)
+    dependency_weight: float = 1.0
+    effective_token_size: int = 0
+    refactor_priority_score: float = 0.0
+    fan_in: int = 0
+    fan_out: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "file": self.file,
             "tokens": self.tokens,
             "language": self.language,
@@ -288,6 +446,13 @@ class HeuristicResult:
             "suggested_refactors": self.suggested_refactors,
             "recommendations": [r.to_dict() for r in self.recommendations],
         }
+        if self.effective_token_size > 0:
+            result["dependency_weight"] = round(self.dependency_weight, 4)
+            result["effective_token_size"] = self.effective_token_size
+            result["refactor_priority_score"] = round(self.refactor_priority_score, 4)
+            result["fan_in"] = self.fan_in
+            result["fan_out"] = self.fan_out
+        return result
 
 
 @dataclass

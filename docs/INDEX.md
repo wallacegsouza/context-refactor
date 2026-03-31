@@ -17,6 +17,7 @@ Official documentation for ContextRefactor as an MCP server, organized by audien
 - [Setup de Desenvolvimento](./desenvolvedor/setup.md)
 - [Fluxos Internos](./desenvolvedor/fluxos.md)
 - [Adicionar Nova Tool](./desenvolvedor/adicionar-nova-tool.md)
+- [Plano: Token Report com Dependencias](./plano-novo-token-report.md)
 - [Qualidade e Testes](./desenvolvedor/qualidade-e-testes.md)
 - [Manutencao e Evolucao](./desenvolvedor/manutencao.md)
 - [Operacao e Troubleshooting](./operacao/troubleshooting.md)
@@ -38,6 +39,7 @@ User-facing path: start with the user guide. Integrators: start with MCP client 
 - Setup, execucao e testes: [Setup](./desenvolvedor/setup.md), [Qualidade e Testes](./desenvolvedor/qualidade-e-testes.md)
 - Operacao e troubleshooting: [Troubleshooting](./operacao/troubleshooting.md)
 - Manutencao e evolucao: [Manutencao](./desenvolvedor/manutencao.md), [Adicionar Nova Tool](./desenvolvedor/adicionar-nova-tool.md)
+- Plano de evolucao do token report: [Token Report com Dependencias](./plano-novo-token-report.md)
 
 ## Capability Status (Current Project)
 

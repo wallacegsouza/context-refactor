@@ -88,6 +88,37 @@ def _analysis_scope_properties() -> dict[str, dict]:
     }
 
 
+def _dependency_analysis_properties() -> dict[str, dict]:
+    return {
+        "dependency_mode": {
+            "type": "string",
+            "enum": ["off", "report_only", "blended", "weighted"],
+            "description": "Dependency-aware token analysis mode.",
+        },
+        "dependency_max_depth": {
+            "type": "integer",
+            "description": "Maximum dependency depth to analyze.",
+        },
+        "dependency_max_multiplier": {
+            "type": "number",
+            "description": "Cap for the dependency multiplier.",
+        },
+        "dependency_base_weight": {
+            "type": "number",
+            "description": "Base multiplier for files with no dependencies.",
+        },
+        "dependency_depth_decay": {
+            "type": "number",
+            "description": "Geometric decay applied per dependency depth level.",
+        },
+        "dependency_depth_weights": {
+            "type": "array",
+            "items": {"type": "number"},
+            "description": "Optional explicit per-level weights overriding dependency_depth_decay.",
+        },
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # MCP SDK path (preferred)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -128,6 +159,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -147,6 +179,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -165,6 +198,7 @@ def _build_mcp_server() -> Server:
                         },
                         "top_n": {"type": "integer", "default": 50},
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -187,6 +221,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -213,6 +248,7 @@ def _build_mcp_server() -> Server:
                         },
                         "top_n": {"type": "integer", "default": 50},
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -235,6 +271,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },

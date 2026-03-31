@@ -29,6 +29,8 @@ from .models import (
 _TECHNIQUE_ORDER: dict[RefactorTechnique, int] = {
     RefactorTechnique.SPLIT_DOCUMENT: 0,
     RefactorTechnique.EXTRACT_MODULE: 1,
+    RefactorTechnique.INVERT_DEPENDENCY: 2,
+    RefactorTechnique.INTRODUCE_INTERFACE: 2,
     RefactorTechnique.EXTRACT_CLASS: 2,
     RefactorTechnique.EXTRACT_METHOD: 3,
     RefactorTechnique.MOVE_METHOD: 4,
@@ -42,7 +44,7 @@ _TECHNIQUE_ORDER: dict[RefactorTechnique, int] = {
 _STEP_TITLES: dict[int, str] = {
     0: "Split large Markdown documentation into topic modules",
     1: "Extract modules from oversized God Files",
-    2: "Extract Classes from large monolithic classes",
+    2: "Reduce coupling and extract clearer seams",
     3: "Extract Methods from long functions",
     4: "Move duplicated logic into shared utilities",
     5: "Flatten deeply nested conditionals",

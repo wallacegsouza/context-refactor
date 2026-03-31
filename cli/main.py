@@ -69,6 +69,13 @@ def _csv_to_list(value: str | None) -> list[str] | None:
     return items or None
 
 
+def _csv_to_float_list(value: str | None) -> list[float] | None:
+    items = _csv_to_list(value)
+    if not items:
+        return None
+    return [float(item) for item in items]
+
+
 def _analysis_options(
     profile: str,
     config_path: str | None,
@@ -86,6 +93,24 @@ def _analysis_options(
         "exclude_files": _csv_to_list(exclude_files),
         "include_categories": _csv_to_list(include_categories),
         "exclude_categories": _csv_to_list(exclude_categories),
+    }
+
+
+def _dependency_options(
+    mode: str | None,
+    max_depth: int | None,
+    max_multiplier: float | None,
+    base_weight: float | None,
+    depth_decay: float | None,
+    depth_weights: str | None,
+) -> dict[str, object]:
+    return {
+        "dependency_mode": mode,
+        "dependency_max_depth": max_depth,
+        "dependency_max_multiplier": max_multiplier,
+        "dependency_base_weight": base_weight,
+        "dependency_depth_decay": depth_decay,
+        "dependency_depth_weights": _csv_to_float_list(depth_weights),
     }
 
 
@@ -141,6 +166,24 @@ def _print_analysis_scope(result: dict) -> None:
     console.print(Panel(body, title="Analysis Scope", border_style="blue"))
 
 
+def _print_dependency_summary(result: dict) -> None:
+    dependency = result.get("dependency_analysis") or {}
+    if not dependency.get("enabled"):
+        return
+
+    effective_tokens = dependency.get("effective_tokens")
+    details = (
+        f"[bold]Mode:[/] {dependency.get('mode', 'off')}\n"
+        f"[bold]Max depth:[/] {dependency.get('max_depth', '-')}\n"
+        f"[bold]Edges:[/] {_human(int(dependency.get('dependency_edges', 0) or 0))}\n"
+        f"[bold]Cycle groups:[/] {_human(int(dependency.get('cycle_groups', 0) or 0))}"
+    )
+    if effective_tokens is not None:
+        details += f"\n[bold]Effective tokens:[/] {_human(int(effective_tokens))}"
+
+    console.print(Panel(details, title="Dependency Analysis", border_style="magenta"))
+
+
 # ── Commands ──────────────────────────────────────────────────────────────────
 
 
@@ -159,6 +202,12 @@ def analyze(
     exclude_files: str | None = typer.Option(None, "--exclude-files", help="Comma-separated file patterns to exclude."),
     include_categories: str | None = typer.Option(None, "--include-categories", help="Comma-separated categories to include."),
     exclude_categories: str | None = typer.Option(None, "--exclude-categories", help="Comma-separated categories to exclude."),
+    dependency_mode: str | None = typer.Option(None, "--dependency-mode", help="off|report_only|blended|weighted"),
+    dependency_max_depth: int | None = typer.Option(None, "--dependency-max-depth", help="Maximum dependency depth to analyze."),
+    dependency_max_multiplier: float | None = typer.Option(None, "--dependency-max-multiplier", help="Cap for the dependency multiplier."),
+    dependency_base_weight: float | None = typer.Option(None, "--dependency-base-weight", help="Base dependency multiplier."),
+    dependency_depth_decay: float | None = typer.Option(None, "--dependency-depth-decay", help="Geometric decay per dependency level."),
+    dependency_depth_weights: str | None = typer.Option(None, "--dependency-depth-weights", help="Comma-separated explicit per-level weights."),
 ) -> None:
     """Full project analysis with recommendations and refactoring plan."""
     from mcp_server.tools import analyze_project
@@ -179,6 +228,14 @@ def analyze(
             include_categories=include_categories,
             exclude_categories=exclude_categories,
         ),
+        **_dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
     )
 
     if output_json:
@@ -188,6 +245,7 @@ def analyze(
     summary = result["project_summary"]
     budget = result["context_budget"]
     _print_analysis_scope(result)
+    _print_dependency_summary(result)
 
     # ── Summary panel
     fits = "[green]YES[/]" if summary["fits_context"] else "[red]NO[/]"
@@ -207,8 +265,13 @@ def analyze(
     table.add_column("File", style="cyan", no_wrap=True, max_width=70)
     table.add_column("Category", style="magenta")
     table.add_column("Tokens", justify="right", style="yellow")
+    if result.get("dependency_analysis", {}).get("enabled"):
+        table.add_column("Effective", justify="right", style="green")
     for f in result["largest_files"][:20]:
-        table.add_row(f["path"], f["category"], _human(f["tokens"]))
+        row = [f["path"], f["category"], _human(f["tokens"])]
+        if result.get("dependency_analysis", {}).get("enabled"):
+            row.append(_human(f.get("effective_token_size", f["tokens"])))
+        table.add_row(*row)
     console.print(table)
 
     # ── Recommendations
@@ -264,6 +327,12 @@ def budget(
     exclude_files: str | None = typer.Option(None, "--exclude-files", help="Comma-separated file patterns to exclude."),
     include_categories: str | None = typer.Option(None, "--include-categories", help="Comma-separated categories to include."),
     exclude_categories: str | None = typer.Option(None, "--exclude-categories", help="Comma-separated categories to exclude."),
+    dependency_mode: str | None = typer.Option(None, "--dependency-mode", help="off|report_only|blended|weighted"),
+    dependency_max_depth: int | None = typer.Option(None, "--dependency-max-depth"),
+    dependency_max_multiplier: float | None = typer.Option(None, "--dependency-max-multiplier"),
+    dependency_base_weight: float | None = typer.Option(None, "--dependency-base-weight"),
+    dependency_depth_decay: float | None = typer.Option(None, "--dependency-depth-decay"),
+    dependency_depth_weights: str | None = typer.Option(None, "--dependency-depth-weights"),
 ) -> None:
     """Check if the project fits inside an LLM context window."""
     from mcp_server.tools import context_budget
@@ -283,6 +352,14 @@ def budget(
             include_categories=include_categories,
             exclude_categories=exclude_categories,
         ),
+        **_dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
     )
 
     if output_json:
@@ -290,6 +367,7 @@ def budget(
         return
 
     _print_analysis_scope(result)
+    _print_dependency_summary(result)
     fits = "[green]YES[/]" if result["fits_context"] else "[red]NO[/]"
     console.print(Panel(
         f"[bold]Context size:[/] {_human(result['llm_context_size'])}   "
@@ -318,6 +396,12 @@ def candidates(
     exclude_files: str | None = typer.Option(None, "--exclude-files", help="Comma-separated file patterns to exclude."),
     include_categories: str | None = typer.Option(None, "--include-categories", help="Comma-separated categories to include."),
     exclude_categories: str | None = typer.Option(None, "--exclude-categories", help="Comma-separated categories to exclude."),
+    dependency_mode: str | None = typer.Option(None, "--dependency-mode", help="off|report_only|blended|weighted"),
+    dependency_max_depth: int | None = typer.Option(None, "--dependency-max-depth"),
+    dependency_max_multiplier: float | None = typer.Option(None, "--dependency-max-multiplier"),
+    dependency_base_weight: float | None = typer.Option(None, "--dependency-base-weight"),
+    dependency_depth_decay: float | None = typer.Option(None, "--dependency-depth-decay"),
+    dependency_depth_weights: str | None = typer.Option(None, "--dependency-depth-weights"),
 ) -> None:
     """Detect code smells and refactoring candidates."""
     from mcp_server.tools import detect_refactor_candidates_tool
@@ -336,6 +420,14 @@ def candidates(
             include_categories=include_categories,
             exclude_categories=exclude_categories,
         ),
+        **_dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
     )
 
     if output_json:
@@ -343,6 +435,7 @@ def candidates(
         return
 
     _print_analysis_scope(result)
+    _print_dependency_summary(result)
     console.print(f"\n[bold]Files scanned:[/] {result['total_files_scanned']}")
     console.print(f"[bold]Candidates found:[/] {result['candidates_found']}\n")
 
@@ -381,6 +474,12 @@ def smells(
     exclude_files: str | None = typer.Option(None, "--exclude-files", help="Comma-separated file patterns to exclude."),
     include_categories: str | None = typer.Option(None, "--include-categories", help="Comma-separated categories to include."),
     exclude_categories: str | None = typer.Option(None, "--exclude-categories", help="Comma-separated categories to exclude."),
+    dependency_mode: str | None = typer.Option(None, "--dependency-mode", help="off|report_only|blended|weighted"),
+    dependency_max_depth: int | None = typer.Option(None, "--dependency-max-depth"),
+    dependency_max_multiplier: float | None = typer.Option(None, "--dependency-max-multiplier"),
+    dependency_base_weight: float | None = typer.Option(None, "--dependency-base-weight"),
+    dependency_depth_decay: float | None = typer.Option(None, "--dependency-depth-decay"),
+    dependency_depth_weights: str | None = typer.Option(None, "--dependency-depth-weights"),
 ) -> None:
     """Detect code smells using the Heuristics Engine (pluggable rules)."""
     from mcp_server.tools import detect_code_smells
@@ -400,6 +499,14 @@ def smells(
             include_categories=include_categories,
             exclude_categories=exclude_categories,
         ),
+        **_dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
     )
 
     if output_json:
@@ -407,24 +514,29 @@ def smells(
         return
 
     _print_analysis_scope(result)
+    _print_dependency_summary(result)
     console.print(f"\n[bold]Files scanned:[/] {_human(result['total_files_scanned'])}")
     console.print(f"[bold]Files with smells:[/] {result['files_with_smells']}\n")
 
     table = Table(title="Code Smell Results", show_lines=True)
     table.add_column("File", max_width=55, style="cyan")
     table.add_column("Tokens", justify="right", style="yellow")
+    if result.get("dependency_analysis", {}).get("enabled"):
+        table.add_column("Effective", justify="right", style="green")
     table.add_column("Language", width=12, style="magenta")
     table.add_column("Problems", max_width=35)
     table.add_column("Top Suggestions", max_width=45)
 
     for r in result["results"][:top_n]:
-        table.add_row(
-            r["file"],
-            _human(r["tokens"]),
+        row = [r["file"], _human(r["tokens"])]
+        if result.get("dependency_analysis", {}).get("enabled"):
+            row.append(_human(r.get("effective_token_size", r["tokens"])))
+        row.extend([
             r["language"],
             ", ".join(r["problems"][:3]) or "—",
             "; ".join(r["suggested_refactors"][:2]) or "—",
-        )
+        ])
+        table.add_row(*row)
     console.print(table)
 
 
@@ -442,6 +554,12 @@ def suggest(
     exclude_files: str | None = typer.Option(None, "--exclude-files", help="Comma-separated file patterns to exclude."),
     include_categories: str | None = typer.Option(None, "--include-categories", help="Comma-separated categories to include."),
     exclude_categories: str | None = typer.Option(None, "--exclude-categories", help="Comma-separated categories to exclude."),
+    dependency_mode: str | None = typer.Option(None, "--dependency-mode", help="off|report_only|blended|weighted"),
+    dependency_max_depth: int | None = typer.Option(None, "--dependency-max-depth"),
+    dependency_max_multiplier: float | None = typer.Option(None, "--dependency-max-multiplier"),
+    dependency_base_weight: float | None = typer.Option(None, "--dependency-base-weight"),
+    dependency_depth_decay: float | None = typer.Option(None, "--dependency-depth-decay"),
+    dependency_depth_weights: str | None = typer.Option(None, "--dependency-depth-weights"),
 ) -> None:
     """Generate refactoring suggestions using the Heuristics Engine."""
     from mcp_server.tools import generate_refactor_suggestions
@@ -461,6 +579,14 @@ def suggest(
             include_categories=include_categories,
             exclude_categories=exclude_categories,
         ),
+        **_dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
     )
 
     if output_json:
@@ -470,6 +596,7 @@ def suggest(
     budget_info = result["context_budget"]
     plan_info = result["refactor_plan"]
     _print_analysis_scope(result)
+    _print_dependency_summary(result)
 
     fits = "[green]YES[/]" if budget_info["fits_context"] else "[red]NO[/]"
     console.print(Panel(
@@ -485,13 +612,15 @@ def suggest(
         table = Table(title=f"Files with Issues ({len(heuristic_results)} found)", show_lines=False)
         table.add_column("File", max_width=55, style="cyan")
         table.add_column("Tokens", justify="right", style="yellow")
+        if result.get("dependency_analysis", {}).get("enabled"):
+            table.add_column("Effective", justify="right", style="green")
         table.add_column("Problems", max_width=40)
         for r in heuristic_results[:15]:
-            table.add_row(
-                r["file"],
-                _human(r["tokens"]),
-                ", ".join(r["problems"][:2]) or "—",
-            )
+            row = [r["file"], _human(r["tokens"])]
+            if result.get("dependency_analysis", {}).get("enabled"):
+                row.append(_human(r.get("effective_token_size", r["tokens"])))
+            row.append(", ".join(r["problems"][:2]) or "—")
+            table.add_row(*row)
         console.print(table)
 
     if not plan_info.get("steps"):
@@ -530,6 +659,12 @@ def plan(
     exclude_files: str | None = typer.Option(None, "--exclude-files", help="Comma-separated file patterns to exclude."),
     include_categories: str | None = typer.Option(None, "--include-categories", help="Comma-separated categories to include."),
     exclude_categories: str | None = typer.Option(None, "--exclude-categories", help="Comma-separated categories to exclude."),
+    dependency_mode: str | None = typer.Option(None, "--dependency-mode", help="off|report_only|blended|weighted"),
+    dependency_max_depth: int | None = typer.Option(None, "--dependency-max-depth"),
+    dependency_max_multiplier: float | None = typer.Option(None, "--dependency-max-multiplier"),
+    dependency_base_weight: float | None = typer.Option(None, "--dependency-base-weight"),
+    dependency_depth_decay: float | None = typer.Option(None, "--dependency-depth-decay"),
+    dependency_depth_weights: str | None = typer.Option(None, "--dependency-depth-weights"),
 ) -> None:
     """Generate a step-by-step refactoring plan."""
     from mcp_server.tools import generate_refactor_plan_tool
@@ -549,6 +684,14 @@ def plan(
             include_categories=include_categories,
             exclude_categories=exclude_categories,
         ),
+        **_dependency_options(
+            mode=dependency_mode,
+            max_depth=dependency_max_depth,
+            max_multiplier=dependency_max_multiplier,
+            base_weight=dependency_base_weight,
+            depth_decay=dependency_depth_decay,
+            depth_weights=dependency_depth_weights,
+        ),
     )
 
     if output_json:
@@ -558,6 +701,7 @@ def plan(
     budget_info = result["context_budget"]
     plan_info = result["refactor_plan"]
     _print_analysis_scope(result)
+    _print_dependency_summary(result)
 
     fits = "[green]YES[/]" if budget_info["fits_context"] else "[red]NO[/]"
     console.print(Panel(
