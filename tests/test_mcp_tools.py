@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from mcp_server import tool_support
 from mcp_server.tools import (
     analyze_project,
     detect_refactor_candidates_tool,
@@ -100,3 +101,11 @@ def test_generate_refactor_suggestions_returns_heuristics_and_plan(tmp_path: Pat
     assert "heuristic_results" in result
     assert "refactor_plan" in result
     assert "dependency_hotspots" in result
+
+
+def test_tool_support_facade_reexports_domain_helpers() -> None:
+    assert callable(tool_support.run_token_analysis)
+    assert callable(tool_support.compute_budget_from_totals)
+    assert callable(tool_support.create_heuristics_engine)
+    assert callable(tool_support.legacy_recommendations)
+    assert callable(tool_support.shared_response_fields)

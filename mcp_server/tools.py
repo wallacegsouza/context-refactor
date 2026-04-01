@@ -10,14 +10,14 @@ from __future__ import annotations
 from typing import Any
 
 from context_refactor.refactor_planner import generate_refactor_plan
-from mcp_server.tool_support import (
+from mcp_server.tool_support_analysis import (
     compute_budget_from_totals,
-    create_heuristics_engine,
-    legacy_recommendations,
     project_summary,
     run_token_analysis,
     shared_response_fields,
 )
+from mcp_server.tool_support_heuristics import create_heuristics_engine
+from mcp_server.tool_support_legacy import legacy_recommendations
 
 # HeuristicsEngine is imported lazily inside tool functions so that the
 # existing four tools remain importable even before refactor_heuristics.py
