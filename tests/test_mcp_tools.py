@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mcp_server.tools import detect_refactor_candidates_tool
+from mcp_server.tools import (
+    analyze_project,
+    detect_refactor_candidates_tool,
+    generate_refactor_suggestions,
+)
 
 
 def _write_coupled_python_package(tmp_path: Path) -> None:
@@ -61,3 +65,38 @@ def test_detect_refactor_candidates_tool_enables_high_coupling_in_blended_mode(
     smells = {rec["smell"] for rec in result["recommendations"]}
     assert result["compatibility_mode"] == "blended"
     assert "High Coupling" in smells
+
+
+def test_analyze_project_returns_shared_metadata_and_plan(tmp_path: Path) -> None:
+    _write_coupled_python_package(tmp_path)
+
+    result = analyze_project(
+        project_path=str(tmp_path),
+        dependency_mode="blended",
+        dependency_max_depth=3,
+        top_n=10,
+    )
+
+    assert result["compatibility_mode"] == "blended"
+    assert "analysis_scope" in result
+    assert "noise_summary" in result
+    assert "dependency_analysis" in result
+    assert "dependency_hotspots" in result
+    assert "project_summary" in result
+    assert "context_budget" in result
+    assert "refactor_plan" in result
+
+
+def test_generate_refactor_suggestions_returns_heuristics_and_plan(tmp_path: Path) -> None:
+    _write_coupled_python_package(tmp_path)
+
+    result = generate_refactor_suggestions(
+        project_path=str(tmp_path),
+        dependency_mode="blended",
+        dependency_max_depth=3,
+    )
+
+    assert result["compatibility_mode"] == "blended"
+    assert "heuristic_results" in result
+    assert "refactor_plan" in result
+    assert "dependency_hotspots" in result

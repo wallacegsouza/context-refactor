@@ -9,57 +9,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from context_refactor.analyzer import analyze_tokens
-from context_refactor.context_budget import compute_budget
-from context_refactor.refactor_engine import detect_refactor_candidates
 from context_refactor.refactor_planner import generate_refactor_plan
+from mcp_server.tool_support import (
+    compute_budget_from_totals,
+    create_heuristics_engine,
+    legacy_recommendations,
+    project_summary,
+    run_token_analysis,
+    shared_response_fields,
+)
 
 # HeuristicsEngine is imported lazily inside tool functions so that the
 # existing four tools remain importable even before refactor_heuristics.py
 # is present (useful during incremental development).
-
-
-def _analysis_kwargs(
-    analysis_profile: str,
-    config_path: str | None,
-    exclude_dirs: list[str] | None,
-    exclude_globs: list[str] | None,
-    exclude_files: list[str] | None,
-    include_categories: list[str] | None,
-    exclude_categories: list[str] | None,
-) -> dict[str, Any]:
-    return {
-        "analysis_profile": analysis_profile,
-        "config_path": config_path,
-        "exclude_dirs": exclude_dirs,
-        "exclude_globs": exclude_globs,
-        "exclude_files": exclude_files,
-        "include_categories": include_categories,
-        "exclude_categories": exclude_categories,
-    }
-
-
-def _dependency_kwargs(
-    dependency_mode: str | None,
-    dependency_max_depth: int | None,
-    dependency_max_multiplier: float | None,
-    dependency_base_weight: float | None,
-    dependency_depth_decay: float | None,
-    dependency_depth_weights: list[float] | None,
-) -> dict[str, Any]:
-    return {
-        "dependency_mode": dependency_mode,
-        "dependency_max_depth": dependency_max_depth,
-        "dependency_max_multiplier": dependency_max_multiplier,
-        "dependency_base_weight": dependency_base_weight,
-        "dependency_depth_decay": dependency_depth_decay,
-        "dependency_depth_weights": dependency_depth_weights,
-    }
-
-
-def _dependency_rules_enabled(totals: dict[str, Any]) -> bool:
-    mode = totals.get("dependency_analysis", {}).get("mode")
-    return mode in {"blended", "weighted"}
 
 
 # ── Tool 1: analyze_project ──────────────────────────────────────────────────
@@ -89,7 +51,10 @@ def analyze_project(
 
     MCP tool name: ``context_refactor.analyze_project``
     """
-    analysis_kwargs = _analysis_kwargs(
+    all_files, all_dirs, totals = run_token_analysis(
+        project_path,
+        estimator=estimator,
+        top_n=10_000,
         analysis_profile=analysis_profile,
         config_path=config_path,
         exclude_dirs=exclude_dirs,
@@ -97,58 +62,23 @@ def analyze_project(
         exclude_files=exclude_files,
         include_categories=include_categories,
         exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
     )
-    all_files, all_dirs, totals = analyze_tokens(
-        project_path,
-        estimator=estimator,
-        top_n=10_000,
-        **analysis_kwargs,
-        **_dependency_kwargs(
-            dependency_mode=dependency_mode,
-            dependency_max_depth=dependency_max_depth,
-            dependency_max_multiplier=dependency_max_multiplier,
-            dependency_base_weight=dependency_base_weight,
-            dependency_depth_decay=dependency_depth_decay,
-            dependency_depth_weights=dependency_depth_weights,
-        ),
-    )
-
-    total_tokens = totals.get("tokens", 0)
-    total_files = totals.get("files", 0)
-
-    budget = compute_budget(
-        total_tokens=total_tokens,
-        total_files=total_files,
-        llm_context_size=llm_context_size,
-        safety_margin=safety_margin,
-    )
-
-    recommendations = detect_refactor_candidates(
-        all_files,
-        project_path,
-        enable_dependency_rules=_dependency_rules_enabled(totals),
-    )
+    budget = compute_budget_from_totals(totals, llm_context_size, safety_margin)
+    recommendations = legacy_recommendations(all_files, project_path, totals)
     plan = generate_refactor_plan(recommendations, budget)
 
     return {
-        "report_schema_version": totals.get("report_schema_version", 1),
-        "compatibility_mode": totals.get("compatibility_mode", "legacy"),
-        "analysis_scope": totals.get("analysis_scope", {}),
-        "noise_summary": totals.get("noise_summary", {}),
-        "signal_score": totals.get("signal_score", {}),
-        "category_counts": totals.get("category_counts", {}),
-        "category_tokens": totals.get("category_tokens", {}),
-        "dependency_analysis": totals.get("dependency_analysis", {}),
-        "project_summary": {
-            "files": total_files,
-            "total_tokens": total_tokens,
-            "context_budget": budget.context_budget,
-            "fits_context": budget.fits_context,
-        },
+        **shared_response_fields(totals, include_hotspots=True),
+        "project_summary": project_summary(totals, budget),
         "context_budget": budget.to_dict(),
         "largest_files": [f.to_dict() for f in all_files[: min(top_n, 25)]],
         "largest_directories": [d.to_dict() for d in all_dirs[:15]],
-        "dependency_hotspots": totals.get("dependency_analysis", {}).get("hotspots", []),
         "refactor_recommendations": [r.to_dict() for r in recommendations[:50]],
         "refactor_plan": plan.to_dict(),
     }
@@ -180,44 +110,27 @@ def context_budget(
 
     MCP tool name: ``context_refactor.context_budget``
     """
-    _, _, totals = analyze_tokens(
+    _, _, totals = run_token_analysis(
         project_path,
         estimator=estimator,
         top_n=1,
-        **_analysis_kwargs(
-            analysis_profile=analysis_profile,
-            config_path=config_path,
-            exclude_dirs=exclude_dirs,
-            exclude_globs=exclude_globs,
-            exclude_files=exclude_files,
-            include_categories=include_categories,
-            exclude_categories=exclude_categories,
-        ),
-        **_dependency_kwargs(
-            dependency_mode=dependency_mode,
-            dependency_max_depth=dependency_max_depth,
-            dependency_max_multiplier=dependency_max_multiplier,
-            dependency_base_weight=dependency_base_weight,
-            dependency_depth_decay=dependency_depth_decay,
-            dependency_depth_weights=dependency_depth_weights,
-        ),
+        analysis_profile=analysis_profile,
+        config_path=config_path,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
     )
-
-    budget = compute_budget(
-        total_tokens=totals.get("tokens", 0),
-        total_files=totals.get("files", 0),
-        llm_context_size=llm_context_size,
-        safety_margin=safety_margin,
-    )
+    budget = compute_budget_from_totals(totals, llm_context_size, safety_margin)
     result = budget.to_dict()
-    result["analysis_scope"] = totals.get("analysis_scope", {})
-    result["noise_summary"] = totals.get("noise_summary", {})
-    result["signal_score"] = totals.get("signal_score", {})
-    result["category_counts"] = totals.get("category_counts", {})
-    result["category_tokens"] = totals.get("category_tokens", {})
-    result["report_schema_version"] = totals.get("report_schema_version", 1)
-    result["compatibility_mode"] = totals.get("compatibility_mode", "legacy")
-    result["dependency_analysis"] = totals.get("dependency_analysis", {})
+    result.update(shared_response_fields(totals))
     return result
 
 
@@ -246,44 +159,28 @@ def detect_refactor_candidates_tool(
 
     MCP tool name: ``context_refactor.detect_refactor_candidates``
     """
-    file_infos, _, totals = analyze_tokens(
+    file_infos, _, totals = run_token_analysis(
         project_path,
         estimator=estimator,
         top_n=10_000,
-        **_analysis_kwargs(
-            analysis_profile=analysis_profile,
-            config_path=config_path,
-            exclude_dirs=exclude_dirs,
-            exclude_globs=exclude_globs,
-            exclude_files=exclude_files,
-            include_categories=include_categories,
-            exclude_categories=exclude_categories,
-        ),
-        **_dependency_kwargs(
-            dependency_mode=dependency_mode,
-            dependency_max_depth=dependency_max_depth,
-            dependency_max_multiplier=dependency_max_multiplier,
-            dependency_base_weight=dependency_base_weight,
-            dependency_depth_decay=dependency_depth_decay,
-            dependency_depth_weights=dependency_depth_weights,
-        ),
+        analysis_profile=analysis_profile,
+        config_path=config_path,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
     )
-    recommendations = detect_refactor_candidates(
-        file_infos,
-        project_path,
-        enable_dependency_rules=_dependency_rules_enabled(totals),
-    )
+    recommendations = legacy_recommendations(file_infos, project_path, totals)
 
     return {
-        "report_schema_version": totals.get("report_schema_version", 1),
-        "compatibility_mode": totals.get("compatibility_mode", "legacy"),
-        "analysis_scope": totals.get("analysis_scope", {}),
-        "noise_summary": totals.get("noise_summary", {}),
-        "signal_score": totals.get("signal_score", {}),
-        "category_counts": totals.get("category_counts", {}),
-        "category_tokens": totals.get("category_tokens", {}),
-        "dependency_analysis": totals.get("dependency_analysis", {}),
-        "dependency_hotspots": totals.get("dependency_analysis", {}).get("hotspots", []),
+        **shared_response_fields(totals, include_hotspots=True),
         "total_files_scanned": totals.get("files", 0),
         "candidates_found": len(recommendations),
         "recommendations": [r.to_dict() for r in recommendations[:top_n]],
@@ -316,56 +213,30 @@ def generate_refactor_plan_tool(
 
     MCP tool name: ``context_refactor.generate_refactor_plan``
     """
-    file_infos, _, totals = analyze_tokens(
+    file_infos, _, totals = run_token_analysis(
         project_path,
         estimator=estimator,
         top_n=10_000,
-        **_analysis_kwargs(
-            analysis_profile=analysis_profile,
-            config_path=config_path,
-            exclude_dirs=exclude_dirs,
-            exclude_globs=exclude_globs,
-            exclude_files=exclude_files,
-            include_categories=include_categories,
-            exclude_categories=exclude_categories,
-        ),
-        **_dependency_kwargs(
-            dependency_mode=dependency_mode,
-            dependency_max_depth=dependency_max_depth,
-            dependency_max_multiplier=dependency_max_multiplier,
-            dependency_base_weight=dependency_base_weight,
-            dependency_depth_decay=dependency_depth_decay,
-            dependency_depth_weights=dependency_depth_weights,
-        ),
+        analysis_profile=analysis_profile,
+        config_path=config_path,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
     )
-
-    total_tokens = totals.get("tokens", 0)
-    total_files = totals.get("files", 0)
-
-    budget = compute_budget(
-        total_tokens=total_tokens,
-        total_files=total_files,
-        llm_context_size=llm_context_size,
-        safety_margin=safety_margin,
-    )
-
-    recommendations = detect_refactor_candidates(
-        file_infos,
-        project_path,
-        enable_dependency_rules=_dependency_rules_enabled(totals),
-    )
+    budget = compute_budget_from_totals(totals, llm_context_size, safety_margin)
+    recommendations = legacy_recommendations(file_infos, project_path, totals)
     plan = generate_refactor_plan(recommendations, budget)
 
     return {
-        "report_schema_version": totals.get("report_schema_version", 1),
-        "compatibility_mode": totals.get("compatibility_mode", "legacy"),
-        "analysis_scope": totals.get("analysis_scope", {}),
-        "noise_summary": totals.get("noise_summary", {}),
-        "signal_score": totals.get("signal_score", {}),
-        "category_counts": totals.get("category_counts", {}),
-        "category_tokens": totals.get("category_tokens", {}),
-        "dependency_analysis": totals.get("dependency_analysis", {}),
-        "dependency_hotspots": totals.get("dependency_analysis", {}).get("hotspots", []),
+        **shared_response_fields(totals, include_hotspots=True),
         "context_budget": budget.to_dict(),
         "refactor_plan": plan.to_dict(),
     }
@@ -399,48 +270,29 @@ def detect_code_smells(
 
     MCP tool name: ``context_refactor.detect_code_smells``
     """
-    from context_refactor.refactor_heuristics import HeuristicsEngine
-
-    file_infos, _, totals = analyze_tokens(
+    file_infos, _, totals = run_token_analysis(
         project_path,
         estimator=estimator,
         top_n=10_000,
-        **_analysis_kwargs(
-            analysis_profile=analysis_profile,
-            config_path=config_path,
-            exclude_dirs=exclude_dirs,
-            exclude_globs=exclude_globs,
-            exclude_files=exclude_files,
-            include_categories=include_categories,
-            exclude_categories=exclude_categories,
-        ),
-        **_dependency_kwargs(
-            dependency_mode=dependency_mode,
-            dependency_max_depth=dependency_max_depth,
-            dependency_max_multiplier=dependency_max_multiplier,
-            dependency_base_weight=dependency_base_weight,
-            dependency_depth_decay=dependency_depth_decay,
-            dependency_depth_weights=dependency_depth_weights,
-        ),
+        analysis_profile=analysis_profile,
+        config_path=config_path,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
     )
-
-    dependency_mode_resolved = totals.get("dependency_analysis", {}).get("mode")
-    engine = HeuristicsEngine(
-        context_window_size=llm_context_size,
-        rank_by_dependency=dependency_mode_resolved in {"blended", "weighted"},
-    )
+    engine = create_heuristics_engine(llm_context_size, totals)
     results = engine.analyze_project(file_infos, project_path)
 
     return {
-        "report_schema_version": totals.get("report_schema_version", 1),
-        "compatibility_mode": totals.get("compatibility_mode", "legacy"),
-        "analysis_scope": totals.get("analysis_scope", {}),
-        "noise_summary": totals.get("noise_summary", {}),
-        "signal_score": totals.get("signal_score", {}),
-        "category_counts": totals.get("category_counts", {}),
-        "category_tokens": totals.get("category_tokens", {}),
-        "dependency_analysis": totals.get("dependency_analysis", {}),
-        "dependency_hotspots": totals.get("dependency_analysis", {}).get("hotspots", []),
+        **shared_response_fields(totals, include_hotspots=True),
         "total_files_scanned": totals.get("files", 0),
         "files_with_smells": len(results),
         "results": [r.to_dict() for r in results[:top_n]],
@@ -476,59 +328,31 @@ def generate_refactor_suggestions(
 
     MCP tool name: ``context_refactor.generate_refactor_suggestions``
     """
-    from context_refactor.refactor_heuristics import HeuristicsEngine
-
-    file_infos, _, totals = analyze_tokens(
+    file_infos, _, totals = run_token_analysis(
         project_path,
         estimator=estimator,
         top_n=10_000,
-        **_analysis_kwargs(
-            analysis_profile=analysis_profile,
-            config_path=config_path,
-            exclude_dirs=exclude_dirs,
-            exclude_globs=exclude_globs,
-            exclude_files=exclude_files,
-            include_categories=include_categories,
-            exclude_categories=exclude_categories,
-        ),
-        **_dependency_kwargs(
-            dependency_mode=dependency_mode,
-            dependency_max_depth=dependency_max_depth,
-            dependency_max_multiplier=dependency_max_multiplier,
-            dependency_base_weight=dependency_base_weight,
-            dependency_depth_decay=dependency_depth_decay,
-            dependency_depth_weights=dependency_depth_weights,
-        ),
+        analysis_profile=analysis_profile,
+        config_path=config_path,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
     )
-
-    total_tokens = totals.get("tokens", 0)
-    total_files = totals.get("files", 0)
-
-    budget = compute_budget(
-        total_tokens=total_tokens,
-        total_files=total_files,
-        llm_context_size=llm_context_size,
-        safety_margin=safety_margin,
-    )
-
-    dependency_mode_resolved = totals.get("dependency_analysis", {}).get("mode")
-    engine = HeuristicsEngine(
-        context_window_size=llm_context_size,
-        rank_by_dependency=dependency_mode_resolved in {"blended", "weighted"},
-    )
+    budget = compute_budget_from_totals(totals, llm_context_size, safety_margin)
+    engine = create_heuristics_engine(llm_context_size, totals)
     results = engine.analyze_project(file_infos, project_path)
     plan = engine.generate_plan(results, budget)
 
     return {
-        "report_schema_version": totals.get("report_schema_version", 1),
-        "compatibility_mode": totals.get("compatibility_mode", "legacy"),
-        "analysis_scope": totals.get("analysis_scope", {}),
-        "noise_summary": totals.get("noise_summary", {}),
-        "signal_score": totals.get("signal_score", {}),
-        "category_counts": totals.get("category_counts", {}),
-        "category_tokens": totals.get("category_tokens", {}),
-        "dependency_analysis": totals.get("dependency_analysis", {}),
-        "dependency_hotspots": totals.get("dependency_analysis", {}).get("hotspots", []),
+        **shared_response_fields(totals, include_hotspots=True),
         "context_budget": budget.to_dict(),
         "heuristic_results": [r.to_dict() for r in results[:50]],
         "refactor_plan": plan.to_dict(),
