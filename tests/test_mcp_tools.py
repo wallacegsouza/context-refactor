@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from mcp_server import tool_support
+from mcp_server import tools as public_tools
 from mcp_server.tools import (
     analyze_project,
     detect_refactor_candidates_tool,
@@ -109,3 +110,12 @@ def test_tool_support_facade_reexports_domain_helpers() -> None:
     assert callable(tool_support.create_heuristics_engine)
     assert callable(tool_support.legacy_recommendations)
     assert callable(tool_support.shared_response_fields)
+
+
+def test_tools_facade_reexports_public_tool_functions() -> None:
+    assert callable(public_tools.analyze_project)
+    assert callable(public_tools.context_budget)
+    assert callable(public_tools.detect_code_smells)
+    assert callable(public_tools.detect_refactor_candidates_tool)
+    assert callable(public_tools.generate_refactor_plan_tool)
+    assert callable(public_tools.generate_refactor_suggestions)
