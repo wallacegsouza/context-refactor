@@ -148,11 +148,24 @@ def _resolve_dependency_number(
     default: int | float,
     cast: type[int] | type[float],
 ) -> int | float:
+    # CLI/explicit value always wins if provided.
     if explicit_value is not None:
         return explicit_value
-    return cast(config.get(key, default))
 
+    # Treat an explicit JSON null as "unset" and fall back to the default.
+    if key in config and config[key] is None:
+        return default
 
+    # If the key is missing entirely, use the default.
+    raw_value = config.get(key, default)
+
+    try:
+        return cast(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid value for '{key}': expected {cast.__name__}, "
+            f"got {raw_value!r} ({type(raw_value).__name__})"
+        ) from exc
 def _resolve_depth_weights(
     config: dict[str, Any],
     dependency_depth_weights: list[float] | None,
