@@ -6,6 +6,7 @@ from typing import Any
 
 from context_refactor.analyzer import analyze_tokens
 from context_refactor.context_budget import compute_budget
+from context_refactor.models import ContextBudget
 
 
 def analysis_kwargs(
@@ -89,11 +90,62 @@ def run_token_analysis(
     )
 
 
+def build_shared_analysis_payload(
+    totals: dict[str, Any],
+    *,
+    include_hotspots: bool = False,
+) -> dict[str, Any]:
+    return shared_response_fields(totals, include_hotspots=include_hotspots)
+
+
+def run_budgeted_analysis(
+    project_path: str,
+    estimator: str,
+    llm_context_size: int,
+    safety_margin: float,
+    top_n: int,
+    *,
+    analysis_profile: str,
+    config_path: str | None,
+    exclude_dirs: list[str] | None,
+    exclude_globs: list[str] | None,
+    exclude_files: list[str] | None,
+    include_categories: list[str] | None,
+    exclude_categories: list[str] | None,
+    dependency_mode: str | None,
+    dependency_max_depth: int | None,
+    dependency_max_multiplier: float | None,
+    dependency_base_weight: float | None,
+    dependency_depth_decay: float | None,
+    dependency_depth_weights: list[float] | None,
+) -> tuple[list[Any], list[Any], dict[str, Any], Any]:
+    file_infos, dir_infos, totals = run_token_analysis(
+        project_path,
+        estimator=estimator,
+        top_n=top_n,
+        analysis_profile=analysis_profile,
+        config_path=config_path,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
+        dependency_mode=dependency_mode,
+        dependency_max_depth=dependency_max_depth,
+        dependency_max_multiplier=dependency_max_multiplier,
+        dependency_base_weight=dependency_base_weight,
+        dependency_depth_decay=dependency_depth_decay,
+        dependency_depth_weights=dependency_depth_weights,
+    )
+    budget = compute_budget_from_totals(totals, llm_context_size, safety_margin)
+    return file_infos, dir_infos, totals, budget
+
+
 def compute_budget_from_totals(
     totals: dict[str, Any],
     llm_context_size: int,
     safety_margin: float,
-):
+) -> ContextBudget:
     return compute_budget(
         total_tokens=totals.get("tokens", 0),
         total_files=totals.get("files", 0),
@@ -133,9 +185,11 @@ def project_summary(totals: dict[str, Any], budget: Any) -> dict[str, Any]:
 
 __all__ = [
     "analysis_kwargs",
+    "build_shared_analysis_payload",
     "compute_budget_from_totals",
     "dependency_kwargs",
     "project_summary",
+    "run_budgeted_analysis",
     "run_token_analysis",
     "shared_response_fields",
 ]

@@ -22,23 +22,70 @@ class FileCollectionSummary:
     category_tokens: dict[str, int]
 
 
+def _file_info_from_raw_entry(entry: dict[str, Any]) -> FileTokenInfo:
+    path = entry.get("path", "")
+    ext = entry.get("ext", "")
+    return FileTokenInfo(
+        path=path,
+        ext=ext,
+        tokens=entry.get("tokens", 0),
+        bytes_=entry.get("bytes", 0),
+        chars=entry.get("chars", 0),
+        category=classify_file(path, ext),
+    )
+
+
+def _merged_dependency_file_info(
+    file_info: FileTokenInfo,
+    result: Any | None,
+) -> FileTokenInfo:
+    if result is None:
+        return file_info
+
+    return FileTokenInfo(
+        path=file_info.path,
+        ext=file_info.ext,
+        tokens=file_info.tokens,
+        bytes_=file_info.bytes_,
+        chars=file_info.chars,
+        category=file_info.category,
+        direct_dependencies_count=result.direct_dependencies_count,
+        direct_internal_dependencies_count=result.direct_internal_dependencies_count,
+        direct_external_dependencies_count=result.direct_external_dependencies_count,
+        transitive_dependencies_count=result.transitive_dependencies_count,
+        dependency_depth_analyzed=result.dependency_depth_analyzed,
+        dependency_weight=result.dependency_weight,
+        effective_token_size=result.effective_token_size,
+        refactor_priority_score=result.refactor_priority_score,
+        fan_in=result.fan_in,
+        fan_out=result.fan_out,
+    )
+
+
+def _directory_key(path: str, depth: int) -> str:
+    parts = [part for part in path.split("/") if part]
+    return "/".join(parts[:depth]) if parts else "."
+
+
+def _effective_token_total(file_infos: Sequence[FileTokenInfo]) -> int:
+    return sum(
+        file_info.effective_token_size if file_info.effective_token_size > 0 else file_info.tokens
+        for file_info in file_infos
+    )
+
+
+def _dependency_hotspots(file_infos: Sequence[FileTokenInfo], top_n: int) -> list[dict[str, Any]]:
+    hotspots = sorted(
+        (file_info for file_info in file_infos if file_info.effective_token_size > 0),
+        key=lambda file_info: (file_info.refactor_priority_score, file_info.effective_token_size),
+        reverse=True,
+    )
+    return [file_info.to_dict() for file_info in hotspots[: min(top_n, 25)]]
+
+
 def build_file_infos(raw_files: Sequence[dict[str, Any]]) -> list[FileTokenInfo]:
     """Convert raw token-report entries into classified file infos."""
-    file_infos: list[FileTokenInfo] = []
-    for entry in raw_files:
-        path = entry.get("path", "")
-        ext = entry.get("ext", "")
-        file_infos.append(
-            FileTokenInfo(
-                path=path,
-                ext=ext,
-                tokens=entry.get("tokens", 0),
-                bytes_=entry.get("bytes", 0),
-                chars=entry.get("chars", 0),
-                category=classify_file(path, ext),
-            )
-        )
-    return file_infos
+    return [_file_info_from_raw_entry(entry) for entry in raw_files]
 
 
 def summarize_file_infos(file_infos: Sequence[FileTokenInfo]) -> FileCollectionSummary:
@@ -69,9 +116,15 @@ def filter_file_infos(
 
     filtered = list(file_infos)
     if include_category_set:
-        filtered = [file_info for file_info in filtered if file_info.category.value in include_category_set]
+        filtered = [
+            file_info for file_info in filtered if file_info.category.value in include_category_set
+        ]
     if exclude_category_set:
-        filtered = [file_info for file_info in filtered if file_info.category.value not in exclude_category_set]
+        filtered = [
+            file_info
+            for file_info in filtered
+            if file_info.category.value not in exclude_category_set
+        ]
     return filtered
 
 
@@ -80,34 +133,10 @@ def merge_dependency_metrics(
     dependency_results: dict[str, Any],
 ) -> list[FileTokenInfo]:
     """Merge dependency metrics back into tokenized file infos."""
-    merged: list[FileTokenInfo] = []
-    for file_info in file_infos:
-        result = dependency_results.get(file_info.path)
-        if result is None:
-            merged.append(file_info)
-            continue
-
-        merged.append(
-            FileTokenInfo(
-                path=file_info.path,
-                ext=file_info.ext,
-                tokens=file_info.tokens,
-                bytes_=file_info.bytes_,
-                chars=file_info.chars,
-                category=file_info.category,
-                direct_dependencies_count=result.direct_dependencies_count,
-                direct_internal_dependencies_count=result.direct_internal_dependencies_count,
-                direct_external_dependencies_count=result.direct_external_dependencies_count,
-                transitive_dependencies_count=result.transitive_dependencies_count,
-                dependency_depth_analyzed=result.dependency_depth_analyzed,
-                dependency_weight=result.dependency_weight,
-                effective_token_size=result.effective_token_size,
-                refactor_priority_score=result.refactor_priority_score,
-                fan_in=result.fan_in,
-                fan_out=result.fan_out,
-            )
-        )
-    return merged
+    return [
+        _merged_dependency_file_info(file_info, dependency_results.get(file_info.path))
+        for file_info in file_infos
+    ]
 
 
 def aggregate_directories(
@@ -117,8 +146,7 @@ def aggregate_directories(
     """Aggregate file token counts by directory prefix."""
     grouped: dict[str, dict[str, int]] = defaultdict(lambda: {"files": 0, "tokens": 0, "bytes": 0})
     for info in file_infos:
-        parts = [part for part in info.path.split("/") if part]
-        directory = "/".join(parts[:depth]) if parts else "."
+        directory = _directory_key(info.path, depth)
         grouped[directory]["files"] += 1
         grouped[directory]["tokens"] += info.tokens
         grouped[directory]["bytes"] += info.bytes_
@@ -249,24 +277,14 @@ def apply_dependency_analysis(
     dependency_results = {result.file_path: result for result in dependency_results_list}
     merged_file_infos = merge_dependency_metrics(file_infos, dependency_results)
 
-    effective_tokens = sum(
-        file_info.effective_token_size if file_info.effective_token_size > 0 else file_info.tokens
-        for file_info in merged_file_infos
-    )
-    hotspots = sorted(
-        (file_info for file_info in merged_file_infos if file_info.effective_token_size > 0),
-        key=lambda file_info: (file_info.refactor_priority_score, file_info.effective_token_size),
-        reverse=True,
-    )
-
     return merged_file_infos, {
         "compatibility_mode": dependency_options["mode"],
         "dependency_analysis": {
-            "effective_tokens": effective_tokens,
+            "effective_tokens": _effective_token_total(merged_file_infos),
             "source_files_analyzed": graph.total_files,
             "dependency_edges": graph.total_edges,
             "cycle_groups": len(graph.cycle_groups),
             "files_with_dependency_data": len(dependency_results_list),
-            "hotspots": [file_info.to_dict() for file_info in hotspots[: min(top_n, 25)]],
+            "hotspots": _dependency_hotspots(merged_file_infos, top_n),
         },
     }

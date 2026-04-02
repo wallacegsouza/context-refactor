@@ -178,7 +178,9 @@ def print_heuristic_results(result: dict[str, Any], limit: int = 15) -> None:
     for heuristic_result in heuristic_results[:limit]:
         row = [heuristic_result["file"], human(heuristic_result["tokens"])]
         if dependency_enabled(result):
-            row.append(human(heuristic_result.get("effective_token_size", heuristic_result["tokens"])))
+            row.append(
+                human(heuristic_result.get("effective_token_size", heuristic_result["tokens"]))
+            )
         row.append(", ".join(heuristic_result["problems"][:2]) or "—")
         table.add_row(*row)
     console.print(table)
@@ -205,3 +207,24 @@ def print_plan_overview(
         )
     )
     return True
+
+
+def print_plan_steps(
+    plan_info: dict[str, Any],
+    *,
+    description_lines: int,
+    reduction_label: str | None = None,
+    truncate_marker: str | None = None,
+) -> None:
+    for step in plan_info["steps"]:
+        console.print(f"\n[bold cyan]Step {step['step_number']}. {step['title']}[/]")
+        console.print(f"  Techniques: {', '.join(step['techniques'])}")
+        summary = f"  Files: {len(step['affected_files'])}"
+        if reduction_label:
+            summary += f"  |  {reduction_label}: {human(step['estimated_token_reduction'])} tokens"
+        console.print(summary)
+        description = step["description"].split("\n")
+        for line in description[:description_lines]:
+            console.print(f"  {line}")
+        if truncate_marker and len(description) > description_lines:
+            console.print(truncate_marker)

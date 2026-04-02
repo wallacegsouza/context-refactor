@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from ..code_refactor import _analyze_generic, _analyze_python  # type: ignore[attr-defined]
+from ..code_refactor import _analyze_generic, _analyze_python
 from ..models import (
     CodeSmell,
     FileCategory,

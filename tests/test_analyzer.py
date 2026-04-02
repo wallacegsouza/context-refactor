@@ -167,3 +167,58 @@ def test_dependency_analysis_resolves_python_from_import_submodule(tmp_path) -> 
     assert totals["dependency_analysis"]["enabled"] is True
     assert a_info.direct_internal_dependencies_count >= 1
     assert a_info.transitive_dependencies_count >= 1
+
+
+def test_repo_config_profile_applies_when_no_explicit_profile(tmp_path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.ts").write_text("export const answer = 42;\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("# Notes\n", encoding="utf-8")
+    (tmp_path / ".context-refactor.json").write_text(
+        json.dumps({"analysis": {"analysis_profile": "source-only"}}),
+        encoding="utf-8",
+    )
+
+    file_infos, _, totals = analyze_tokens(str(tmp_path), estimator="bytes", top_n=10)
+
+    assert totals["analysis_scope"]["profile"] == "source-only"
+    assert [info.path for info in file_infos] == ["src/app.ts"]
+
+
+def test_dependency_options_keep_explicit_precedence_over_repo_config(tmp_path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    (tmp_path / ".context-refactor.json").write_text(
+        json.dumps(
+            {
+                "dependency_analysis": {
+                    "mode": "report_only",
+                    "max_depth": 7,
+                    "max_multiplier": 3.5,
+                    "base_weight": 1.5,
+                    "depth_decay": 0.2,
+                    "depth_weights": [0.9, 0.4],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _, _, totals = analyze_tokens(
+        str(tmp_path),
+        estimator="bytes",
+        top_n=10,
+        dependency_mode="blended",
+        dependency_max_depth=4,
+        dependency_max_multiplier=9.0,
+        dependency_base_weight=2.0,
+        dependency_depth_decay=0.8,
+        dependency_depth_weights=[1.0, 0.5, 0.25],
+    )
+
+    dependency = totals["dependency_analysis"]
+    assert dependency["mode"] == "blended"
+    assert dependency["max_depth"] == 4
+    assert dependency["max_multiplier"] == 9.0
+    assert dependency["base_weight"] == 2.0
+    assert dependency["depth_decay"] == 0.8
+    assert dependency["depth_weights"] == [1.0, 0.5, 0.25]

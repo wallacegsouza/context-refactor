@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,20 @@ def resolve_path(project_path: str) -> str:
 
 def print_json(data: dict[str, Any]) -> None:
     console.print_json(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def run_tool(
+    tool: Callable[..., dict[str, Any]],
+    *,
+    output_json: bool,
+    render: Callable[[dict[str, Any]], None],
+    **kwargs: Any,
+) -> None:
+    result = tool(**kwargs)
+    if output_json:
+        print_json(result)
+        return
+    render(result)
 
 
 def human(number: int) -> str:

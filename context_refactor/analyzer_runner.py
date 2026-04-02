@@ -7,7 +7,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 TOKEN_REPORT_SCRIPT = PACKAGE_DIR.parent / "token_report.py"
@@ -66,4 +66,4 @@ def run_token_report(
             )
 
         with open(out_json, encoding="utf-8") as handle:
-            return json.load(handle)
+            return cast(dict[str, Any], json.load(handle))

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..options import (
     config_path_option,
     context_size_option,
@@ -28,14 +30,49 @@ from ..rendering import (
     print_heuristic_results,
     print_heuristics_state,
     print_plan_overview,
+    print_plan_steps,
 )
-from ..runtime import console, typer
+from ..runtime import typer
 from ..shared import (
     build_tool_kwargs,
-    human,
     print_analysis_context,
-    print_json,
+    run_tool,
 )
+
+
+def _render_smells_result(result: dict[str, Any], top_n: int) -> None:
+    print_analysis_context(result)
+    print_code_smell_results(result, top_n)
+
+
+def _render_suggest_result(result: dict[str, Any]) -> None:
+    budget_info = result["context_budget"]
+    plan_info = result["refactor_plan"]
+    print_analysis_context(result)
+    print_heuristics_state(budget_info)
+    print_heuristic_results(result)
+
+    if not print_plan_overview(plan_info):
+        return
+
+    print_plan_steps(plan_info, description_lines=4, reduction_label="Est. reduction")
+
+
+def _render_plan_result(result: dict[str, Any]) -> None:
+    budget_info = result["context_budget"]
+    plan_info = result["refactor_plan"]
+    print_analysis_context(result)
+    print_heuristics_state(budget_info, title="Current State")
+
+    if not print_plan_overview(plan_info):
+        return
+
+    print_plan_steps(
+        plan_info,
+        description_lines=5,
+        reduction_label="Est. reduction",
+        truncate_marker="  ... (truncated)",
+    )
 
 
 def register_heuristics_commands(app: typer.Typer) -> None:
@@ -63,7 +100,10 @@ def register_heuristics_commands(app: typer.Typer) -> None:
         """Detect code smells using the Heuristics Engine (pluggable rules)."""
         from mcp_server.tools import detect_code_smells
 
-        result = detect_code_smells(
+        run_tool(
+            detect_code_smells,
+            output_json=output_json,
+            render=lambda result: _render_smells_result(result, top_n),
             llm_context_size=context_size,
             estimator=estimator,
             top_n=top_n,
@@ -84,13 +124,6 @@ def register_heuristics_commands(app: typer.Typer) -> None:
                 dependency_depth_weights=dependency_depth_weights,
             ),
         )
-
-        if output_json:
-            print_json(result)
-            return
-
-        print_analysis_context(result)
-        print_code_smell_results(result, top_n)
 
     @app.command()
     def suggest(
@@ -116,7 +149,10 @@ def register_heuristics_commands(app: typer.Typer) -> None:
         """Generate refactoring suggestions using the Heuristics Engine."""
         from mcp_server.tools import generate_refactor_suggestions
 
-        result = generate_refactor_suggestions(
+        run_tool(
+            generate_refactor_suggestions,
+            output_json=output_json,
+            render=_render_suggest_result,
             llm_context_size=context_size,
             safety_margin=safety_margin,
             estimator=estimator,
@@ -137,28 +173,6 @@ def register_heuristics_commands(app: typer.Typer) -> None:
                 dependency_depth_weights=dependency_depth_weights,
             ),
         )
-
-        if output_json:
-            print_json(result)
-            return
-
-        budget_info = result["context_budget"]
-        plan_info = result["refactor_plan"]
-        print_analysis_context(result)
-        print_heuristics_state(budget_info)
-        print_heuristic_results(result)
-
-        if not print_plan_overview(plan_info):
-            return
-
-        for step in plan_info["steps"]:
-            console.print(f"\n[bold cyan]Step {step['step_number']}. {step['title']}[/]")
-            console.print(f"  Techniques: {', '.join(step['techniques'])}")
-            console.print(
-                f"  Files: {len(step['affected_files'])}  |  Est. reduction: {human(step['estimated_token_reduction'])} tokens"
-            )
-            for line in step["description"].split("\n")[:4]:
-                console.print(f"  {line}")
 
     @app.command()
     def plan(
@@ -184,7 +198,10 @@ def register_heuristics_commands(app: typer.Typer) -> None:
         """Generate a step-by-step refactoring plan."""
         from mcp_server.tools import generate_refactor_plan_tool
 
-        result = generate_refactor_plan_tool(
+        run_tool(
+            generate_refactor_plan_tool,
+            output_json=output_json,
+            render=_render_plan_result,
             llm_context_size=context_size,
             safety_margin=safety_margin,
             estimator=estimator,
@@ -205,26 +222,3 @@ def register_heuristics_commands(app: typer.Typer) -> None:
                 dependency_depth_weights=dependency_depth_weights,
             ),
         )
-
-        if output_json:
-            print_json(result)
-            return
-
-        budget_info = result["context_budget"]
-        plan_info = result["refactor_plan"]
-        print_analysis_context(result)
-        print_heuristics_state(budget_info, title="Current State")
-
-        if not print_plan_overview(plan_info):
-            return
-
-        for step in plan_info["steps"]:
-            console.print(f"\n[bold cyan]Step {step['step_number']}. {step['title']}[/]")
-            console.print(f"  Techniques: {', '.join(step['techniques'])}")
-            console.print(
-                f"  Files: {len(step['affected_files'])}  |  Est. reduction: {human(step['estimated_token_reduction'])} tokens"
-            )
-            for line in step["description"].split("\n")[:5]:
-                console.print(f"  {line}")
-            if len(step["description"].split("\n")) > 5:
-                console.print("  ... (truncated)")

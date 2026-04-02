@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..options import (
     config_path_option,
     context_size_option,
@@ -27,16 +29,38 @@ from ..rendering import (
     print_context_budget,
     print_largest_files,
     print_plan_overview,
+    print_plan_steps,
     print_project_summary,
     print_refactor_recommendations,
     print_refactoring_candidates,
 )
-from ..runtime import console, typer
+from ..runtime import typer
 from ..shared import (
     build_tool_kwargs,
     print_analysis_context,
-    print_json,
+    run_tool,
 )
+
+
+def _render_analyze_result(result: dict[str, Any]) -> None:
+    print_analysis_context(result)
+    print_project_summary(result["project_summary"], result["context_budget"])
+    print_largest_files(result)
+    print_refactor_recommendations(result["refactor_recommendations"])
+
+    plan = result.get("refactor_plan")
+    if plan and print_plan_overview(plan):
+        print_plan_steps(plan, description_lines=0)
+
+
+def _render_budget_result(result: dict[str, Any]) -> None:
+    print_analysis_context(result)
+    print_context_budget(result)
+
+
+def _render_candidates_result(result: dict[str, Any], top_n: int) -> None:
+    print_analysis_context(result)
+    print_refactoring_candidates(result, top_n)
 
 
 def register_analysis_commands(app: typer.Typer) -> None:
@@ -65,7 +89,10 @@ def register_analysis_commands(app: typer.Typer) -> None:
         """Full project analysis with recommendations and refactoring plan."""
         from mcp_server.tools import analyze_project
 
-        result = analyze_project(
+        run_tool(
+            analyze_project,
+            output_json=output_json,
+            render=_render_analyze_result,
             llm_context_size=context_size,
             safety_margin=safety_margin,
             estimator=estimator,
@@ -87,24 +114,6 @@ def register_analysis_commands(app: typer.Typer) -> None:
                 dependency_depth_weights=dependency_depth_weights,
             ),
         )
-
-        if output_json:
-            print_json(result)
-            return
-
-        print_analysis_context(result)
-        print_project_summary(result["project_summary"], result["context_budget"])
-        print_largest_files(result)
-        print_refactor_recommendations(result["refactor_recommendations"])
-
-        plan = result.get("refactor_plan")
-        if plan and print_plan_overview(plan):
-            for step in plan["steps"]:
-                console.print(
-                    f"\n  [bold cyan]Step {step['step_number']}:[/] {step['title']}\n"
-                    f"  Techniques: {', '.join(step['techniques'])}\n"
-                    f"  Files affected: {len(step['affected_files'])}"
-                )
 
     @app.command()
     def budget(
@@ -130,7 +139,10 @@ def register_analysis_commands(app: typer.Typer) -> None:
         """Check if the project fits inside an LLM context window."""
         from mcp_server.tools import context_budget
 
-        result = context_budget(
+        run_tool(
+            context_budget,
+            output_json=output_json,
+            render=_render_budget_result,
             llm_context_size=context_size,
             safety_margin=safety_margin,
             estimator=estimator,
@@ -151,13 +163,6 @@ def register_analysis_commands(app: typer.Typer) -> None:
                 dependency_depth_weights=dependency_depth_weights,
             ),
         )
-
-        if output_json:
-            print_json(result)
-            return
-
-        print_analysis_context(result)
-        print_context_budget(result)
 
     @app.command()
     def candidates(
@@ -182,7 +187,10 @@ def register_analysis_commands(app: typer.Typer) -> None:
         """Detect code smells and refactoring candidates."""
         from mcp_server.tools import detect_refactor_candidates_tool
 
-        result = detect_refactor_candidates_tool(
+        run_tool(
+            detect_refactor_candidates_tool,
+            output_json=output_json,
+            render=lambda result: _render_candidates_result(result, top_n),
             estimator=estimator,
             top_n=top_n,
             **build_tool_kwargs(
@@ -202,10 +210,3 @@ def register_analysis_commands(app: typer.Typer) -> None:
                 dependency_depth_weights=dependency_depth_weights,
             ),
         )
-
-        if output_json:
-            print_json(result)
-            return
-
-        print_analysis_context(result)
-        print_refactoring_candidates(result, top_n)

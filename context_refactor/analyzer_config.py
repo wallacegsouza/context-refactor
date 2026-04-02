@@ -69,6 +69,99 @@ PROFILE_DEFAULTS: dict[str, dict[str, list[str]]] = {
 VALID_CATEGORY_VALUES = {category.value for category in FileCategory}
 
 
+def _normalize_string_list(values: Any) -> list[str]:
+    return normalize_list(values)
+
+
+def _normalize_category_list(values: Any) -> list[str]:
+    return normalize_categories(_normalize_string_list(values))
+
+
+def _resolve_profile_name(requested_profile: str, configured_profile: Any) -> str:
+    requested = (requested_profile or "default").strip().lower()
+    if requested and requested != "default":
+        return requested
+    return str(configured_profile or requested).strip().lower()
+
+
+def _merge_analysis_scope_values(
+    profile_defaults: dict[str, list[str]],
+    config: dict[str, Any],
+    *,
+    exclude_dirs: list[str] | None,
+    exclude_globs: list[str] | None,
+    exclude_files: list[str] | None,
+    include_categories: list[str] | None,
+    exclude_categories: list[str] | None,
+) -> dict[str, list[str]]:
+    return {
+        "exclude_dirs": merge_unique(
+            profile_defaults.get("exclude_dirs", []),
+            _normalize_string_list(config.get("exclude_dirs")),
+            _normalize_string_list(exclude_dirs),
+        ),
+        "exclude_globs": merge_unique(
+            profile_defaults.get("exclude_globs", []),
+            _normalize_string_list(config.get("exclude_globs")),
+            _normalize_string_list(exclude_globs),
+        ),
+        "exclude_files": merge_unique(
+            profile_defaults.get("exclude_files", []),
+            _normalize_string_list(config.get("exclude_files")),
+            _normalize_string_list(exclude_files),
+        ),
+        "include_categories": normalize_categories(
+            merge_unique(
+                profile_defaults.get("include_categories", []),
+                _normalize_category_list(config.get("include_categories")),
+                _normalize_string_list(include_categories),
+            )
+        ),
+        "exclude_categories": normalize_categories(
+            merge_unique(
+                profile_defaults.get("exclude_categories", []),
+                _normalize_category_list(config.get("exclude_categories")),
+                _normalize_string_list(exclude_categories),
+            )
+        ),
+    }
+
+
+def _resolve_dependency_mode(config: dict[str, Any], dependency_mode: str | None) -> str:
+    requested_mode = (dependency_mode or "").strip().lower()
+    if requested_mode:
+        return requested_mode
+
+    configured_mode = str(config.get("mode", "")).strip().lower()
+    enabled_flag = config.get("enabled")
+    if configured_mode:
+        return configured_mode
+    if enabled_flag is True:
+        return "report_only"
+    return DEFAULT_DEPENDENCY_MODE
+
+
+def _resolve_dependency_number(
+    explicit_value: int | float | None,
+    config: dict[str, Any],
+    key: str,
+    default: int | float,
+    cast: type[int] | type[float],
+) -> int | float:
+    if explicit_value is not None:
+        return explicit_value
+    return cast(config.get(key, default))
+
+
+def _resolve_depth_weights(
+    config: dict[str, Any],
+    dependency_depth_weights: list[float] | None,
+) -> list[float]:
+    if dependency_depth_weights is not None:
+        return dependency_depth_weights
+    return normalize_float_list(config.get("depth_weights"))
+
+
 def split_csv(value: str | None) -> list[str]:
     if not value:
         return []
@@ -140,7 +233,9 @@ def load_project_config(
     project_path: str,
     config_path: str | None = None,
 ) -> tuple[dict[str, Any], str | None]:
-    candidate = Path(config_path).resolve() if config_path else Path(project_path) / DEFAULT_CONFIG_FILENAME
+    candidate = (
+        Path(config_path).resolve() if config_path else Path(project_path) / DEFAULT_CONFIG_FILENAME
+    )
     if not candidate.is_file():
         return {}, None
 
@@ -176,58 +271,27 @@ def resolve_analysis_scope(
     exclude_categories: list[str] | None,
 ) -> dict[str, Any]:
     config, resolved_config_path = load_analysis_config(project_path, config_path=config_path)
-    requested_profile = (analysis_profile or "default").strip().lower()
-    if requested_profile and requested_profile != "default":
-        profile = requested_profile
-    else:
-        profile = str(config.get("analysis_profile", requested_profile)).strip().lower()
+    profile = _resolve_profile_name(analysis_profile, config.get("analysis_profile"))
     if profile not in PROFILE_DEFAULTS:
         raise ValueError(
             f"Unknown analysis profile '{profile}'. Valid profiles: {', '.join(sorted(PROFILE_DEFAULTS))}"
         )
 
     profile_defaults = PROFILE_DEFAULTS[profile]
-    config_exclude_dirs = normalize_list(config.get("exclude_dirs"))
-    config_exclude_globs = normalize_list(config.get("exclude_globs"))
-    config_exclude_files = normalize_list(config.get("exclude_files"))
-    config_include_categories = normalize_categories(normalize_list(config.get("include_categories")))
-    config_exclude_categories = normalize_categories(normalize_list(config.get("exclude_categories")))
-
-    resolved_include_categories = normalize_categories(
-        merge_unique(
-            profile_defaults.get("include_categories", []),
-            config_include_categories,
-            normalize_list(include_categories),
-        )
-    )
-    resolved_exclude_categories = normalize_categories(
-        merge_unique(
-            profile_defaults.get("exclude_categories", []),
-            config_exclude_categories,
-            normalize_list(exclude_categories),
-        )
+    resolved_scope = _merge_analysis_scope_values(
+        profile_defaults,
+        config,
+        exclude_dirs=exclude_dirs,
+        exclude_globs=exclude_globs,
+        exclude_files=exclude_files,
+        include_categories=include_categories,
+        exclude_categories=exclude_categories,
     )
 
     return {
         "profile": profile,
         "config_path": resolved_config_path,
-        "exclude_dirs": merge_unique(
-            profile_defaults.get("exclude_dirs", []),
-            config_exclude_dirs,
-            normalize_list(exclude_dirs),
-        ),
-        "exclude_globs": merge_unique(
-            profile_defaults.get("exclude_globs", []),
-            config_exclude_globs,
-            normalize_list(exclude_globs),
-        ),
-        "exclude_files": merge_unique(
-            profile_defaults.get("exclude_files", []),
-            config_exclude_files,
-            normalize_list(exclude_files),
-        ),
-        "include_categories": resolved_include_categories,
-        "exclude_categories": resolved_exclude_categories,
+        **resolved_scope,
     }
 
 
@@ -241,23 +305,14 @@ def resolve_dependency_options(
     dependency_depth_decay: float | None,
     dependency_depth_weights: list[float] | None,
 ) -> dict[str, Any]:
-    project_config, resolved_config_path = load_project_config(project_path, config_path=config_path)
+    project_config, resolved_config_path = load_project_config(
+        project_path, config_path=config_path
+    )
     config = project_config.get("dependency_analysis", {})
     if config and not isinstance(config, dict):
         raise ValueError("dependency_analysis config must be a JSON object")
 
-    requested_mode = (dependency_mode or "").strip().lower()
-    if requested_mode:
-        mode = requested_mode
-    else:
-        configured_mode = str(config.get("mode", "")).strip().lower()
-        enabled_flag = config.get("enabled")
-        if configured_mode:
-            mode = configured_mode
-        elif enabled_flag is True:
-            mode = "report_only"
-        else:
-            mode = DEFAULT_DEPENDENCY_MODE
+    mode = _resolve_dependency_mode(config, dependency_mode)
 
     if mode not in VALID_DEPENDENCY_MODES:
         raise ValueError(
@@ -269,36 +324,39 @@ def resolve_dependency_options(
     if configured_scope_weights and not isinstance(configured_scope_weights, dict):
         raise ValueError("dependency_analysis.scope_weights must be a JSON object")
 
-    configured_depth_weights = normalize_float_list(config.get("depth_weights"))
-    resolved_depth_weights = (
-        dependency_depth_weights
-        if dependency_depth_weights is not None
-        else configured_depth_weights
-    )
+    resolved_depth_weights = _resolve_depth_weights(config, dependency_depth_weights)
 
     return {
         "enabled": mode != "off",
         "mode": mode,
         "config_path": resolved_config_path,
-        "max_depth": (
-            dependency_max_depth
-            if dependency_max_depth is not None
-            else int(config.get("max_depth", DEFAULT_DEPENDENCY_MAX_DEPTH))
+        "max_depth": _resolve_dependency_number(
+            dependency_max_depth,
+            config,
+            "max_depth",
+            DEFAULT_DEPENDENCY_MAX_DEPTH,
+            int,
         ),
-        "max_multiplier": (
-            dependency_max_multiplier
-            if dependency_max_multiplier is not None
-            else float(config.get("max_multiplier", DEFAULT_DEPENDENCY_MAX_MULTIPLIER))
+        "max_multiplier": _resolve_dependency_number(
+            dependency_max_multiplier,
+            config,
+            "max_multiplier",
+            DEFAULT_DEPENDENCY_MAX_MULTIPLIER,
+            float,
         ),
-        "base_weight": (
-            dependency_base_weight
-            if dependency_base_weight is not None
-            else float(config.get("base_weight", DEFAULT_DEPENDENCY_BASE_WEIGHT))
+        "base_weight": _resolve_dependency_number(
+            dependency_base_weight,
+            config,
+            "base_weight",
+            DEFAULT_DEPENDENCY_BASE_WEIGHT,
+            float,
         ),
-        "depth_decay": (
-            dependency_depth_decay
-            if dependency_depth_decay is not None
-            else float(config.get("depth_decay", DEFAULT_DEPENDENCY_DEPTH_DECAY))
+        "depth_decay": _resolve_dependency_number(
+            dependency_depth_decay,
+            config,
+            "depth_decay",
+            DEFAULT_DEPENDENCY_DEPTH_DECAY,
+            float,
         ),
         "depth_weights": resolved_depth_weights or [],
         "internal_dependency_weight": float(
