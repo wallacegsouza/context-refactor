@@ -61,7 +61,7 @@ def _write_clean_py(tmp_path: Path, name: str = "clean.py") -> str:
 class TestHeuristicsEngineInit:
     def test_default_rules_count(self) -> None:
         engine = HeuristicsEngine()
-        assert len(engine._rules) == 4
+        assert len(engine._rules) == 5
 
     def test_extra_rules_appended(self) -> None:
         class NoopRule(RefactorRule):
@@ -71,7 +71,7 @@ class TestHeuristicsEngineInit:
                 return []
 
         engine = HeuristicsEngine(extra_rules=[NoopRule()])
-        assert len(engine._rules) == 5
+        assert len(engine._rules) == 6
 
     def test_context_window_size_passed_to_large_file_rule(self) -> None:
         from context_refactor.refactor_rules.large_file_rule import LargeFileRule
@@ -126,6 +126,34 @@ class TestAnalyzeFile:
         result = engine.analyze_file(fi, str(tmp_path))
         assert result.tokens == 999
 
+    def test_dependency_metrics_propagate_to_heuristic_result(self, tmp_path: Path) -> None:
+        name = _write_clean_py(tmp_path)
+        fi = _make_file_info(name, tokens=999)
+        fi = FileTokenInfo(
+            path=fi.path,
+            ext=fi.ext,
+            tokens=fi.tokens,
+            bytes_=fi.bytes_,
+            chars=fi.chars,
+            category=fi.category,
+            direct_dependencies_count=4,
+            direct_internal_dependencies_count=3,
+            direct_external_dependencies_count=1,
+            transitive_dependencies_count=7,
+            dependency_depth_analyzed=3,
+            dependency_weight=1.9,
+            effective_token_size=1_500,
+            refactor_priority_score=0.8,
+            fan_in=2,
+            fan_out=4,
+        )
+        engine = HeuristicsEngine()
+        result = engine.analyze_file(fi, str(tmp_path))
+        assert result.effective_token_size == 1_500
+        assert result.refactor_priority_score == 0.8
+        assert result.fan_in == 2
+        assert result.fan_out == 4
+
     def test_large_file_triggers_recommendation(self, tmp_path: Path) -> None:
         # context window 1 000; threshold = 150 tokens
         (tmp_path / "large.py").write_text("x = 1\n" * 200)
@@ -134,6 +162,30 @@ class TestAnalyzeFile:
         result = engine.analyze_file(fi, str(tmp_path))
         problems = result.problems
         assert "God File" in problems
+
+    def test_high_coupling_rule_triggers_recommendation(self, tmp_path: Path) -> None:
+        (tmp_path / "coupled.py").write_text("x = 1\n" * 20)
+        fi = FileTokenInfo(
+            path="coupled.py",
+            ext=".py",
+            tokens=120,
+            bytes_=480,
+            chars=480,
+            category=FileCategory.SOURCE_CODE,
+            direct_dependencies_count=8,
+            direct_internal_dependencies_count=6,
+            direct_external_dependencies_count=2,
+            transitive_dependencies_count=15,
+            dependency_depth_analyzed=3,
+            dependency_weight=2.1,
+            effective_token_size=252,
+            refactor_priority_score=0.9,
+            fan_in=3,
+            fan_out=7,
+        )
+        engine = HeuristicsEngine()
+        result = engine.analyze_file(fi, str(tmp_path))
+        assert "High Coupling" in result.problems
 
     def test_deduplication_prevents_double_report(self, tmp_path: Path) -> None:
         """Both pluggable rule and existing analyzer fire → only one recommendation kept."""
@@ -192,6 +244,51 @@ class TestAnalyzeProject:
         results = engine.analyze_project([fi_a, fi_b], str(tmp_path))
         if len(results) >= 2:
             assert results[0].tokens >= results[1].tokens
+
+    def test_results_sorted_by_dependency_score_when_enabled(self, tmp_path: Path) -> None:
+        body = "\n".join(f"x_{i} = {i}" for i in range(700))
+        (tmp_path / "a.py").write_text(body)
+        (tmp_path / "b.py").write_text(body)
+        fi_a = FileTokenInfo(
+            path="a.py",
+            ext=".py",
+            tokens=5_000,
+            bytes_=20_000,
+            chars=20_000,
+            category=FileCategory.SOURCE_CODE,
+            direct_dependencies_count=6,
+            direct_internal_dependencies_count=5,
+            direct_external_dependencies_count=1,
+            transitive_dependencies_count=10,
+            dependency_depth_analyzed=3,
+            dependency_weight=2.0,
+            effective_token_size=8_000,
+            refactor_priority_score=0.95,
+            fan_in=4,
+            fan_out=6,
+        )
+        fi_b = FileTokenInfo(
+            path="b.py",
+            ext=".py",
+            tokens=10_000,
+            bytes_=40_000,
+            chars=40_000,
+            category=FileCategory.SOURCE_CODE,
+            direct_dependencies_count=1,
+            direct_internal_dependencies_count=1,
+            direct_external_dependencies_count=0,
+            transitive_dependencies_count=0,
+            dependency_depth_analyzed=3,
+            dependency_weight=1.1,
+            effective_token_size=11_000,
+            refactor_priority_score=0.20,
+            fan_in=0,
+            fan_out=1,
+        )
+        engine = HeuristicsEngine(context_window_size=1_000, rank_by_dependency=True)
+        results = engine.analyze_project([fi_a, fi_b], str(tmp_path))
+        if len(results) >= 2:
+            assert results[0].file.endswith("a.py")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

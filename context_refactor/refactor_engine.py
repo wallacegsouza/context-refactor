@@ -22,11 +22,16 @@ from .models import (
     FileTokenInfo,
     RefactorRecommendation,
 )
+from .refactor_rules import HighCouplingRule
+
+_HIGH_COUPLING_RULE = HighCouplingRule()
 
 
 def detect_refactor_candidates(
     file_infos: Sequence[FileTokenInfo],
     project_path: str,
+    *,
+    enable_dependency_rules: bool = False,
 ) -> list[RefactorRecommendation]:
     """Scan every file and collect all refactoring recommendations.
 
@@ -36,6 +41,9 @@ def detect_refactor_candidates(
         Token-annotated file list produced by :func:`analyzer.analyze_tokens`.
     project_path:
         Absolute path to the project root (used to resolve relative paths).
+    enable_dependency_rules:
+        Opt-in flag for dependency-aware rules. Defaults to ``False`` so the
+        legacy engine remains stable in ``legacy`` and ``report_only`` modes.
 
     Returns
     -------
@@ -56,6 +64,8 @@ def detect_refactor_candidates(
 
         elif info.category == FileCategory.SOURCE_CODE:
             recs = analyze_source_file(abs_path, tokens=info.tokens)
+            if enable_dependency_rules and _HIGH_COUPLING_RULE.applies_to(info):
+                recs.extend(_HIGH_COUPLING_RULE.evaluate(info, project_path))
             recommendations.extend(recs)
 
         # Configuration and binary files are intentionally skipped.

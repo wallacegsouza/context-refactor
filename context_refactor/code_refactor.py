@@ -50,7 +50,11 @@ def _python_functions(tree: ast.AST) -> list[FunctionInfo]:
             # Simple nesting depth: count enclosing function-defs
             depth = 0
             for parent in ast.walk(tree):
-                if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)) and parent is not node and hasattr(parent, "lineno"):
+                if (
+                    isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and parent is not node
+                    and hasattr(parent, "lineno")
+                ):
                     p_end = parent.end_lineno or parent.lineno
                     if parent.lineno <= start and p_end >= end:
                         depth += 1
@@ -77,7 +81,6 @@ def _python_classes(tree: ast.AST) -> list[ClassInfo]:
                 1
                 for child in ast.walk(node)
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and child is not node
             )
             classes.append(
                 ClassInfo(

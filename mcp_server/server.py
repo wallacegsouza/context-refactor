@@ -20,6 +20,8 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from collections.abc import Callable
+from typing import Any
 
 # Try to use the official ``mcp`` SDK.  If it isn't installed yet, fall back
 # to a minimal stdin/stdout JSON-RPC loop so the project is still functional.
@@ -41,8 +43,12 @@ from mcp_server.tools import (
     generate_refactor_suggestions,
 )
 
+ToolResult = dict[str, Any]
+ToolHandler = Callable[..., ToolResult]
+JsonObject = dict[str, Any]
 
-def _analysis_scope_properties() -> dict[str, dict]:
+
+def _analysis_scope_properties() -> dict[str, JsonObject]:
     return {
         "analysis_profile": {
             "type": "string",
@@ -88,6 +94,37 @@ def _analysis_scope_properties() -> dict[str, dict]:
     }
 
 
+def _dependency_analysis_properties() -> dict[str, JsonObject]:
+    return {
+        "dependency_mode": {
+            "type": "string",
+            "enum": ["off", "report_only", "blended", "weighted"],
+            "description": "Dependency-aware token analysis mode.",
+        },
+        "dependency_max_depth": {
+            "type": "integer",
+            "description": "Maximum dependency depth to analyze.",
+        },
+        "dependency_max_multiplier": {
+            "type": "number",
+            "description": "Cap for the dependency multiplier.",
+        },
+        "dependency_base_weight": {
+            "type": "number",
+            "description": "Base multiplier for files with no dependencies.",
+        },
+        "dependency_depth_decay": {
+            "type": "number",
+            "description": "Geometric decay applied per dependency depth level.",
+        },
+        "dependency_depth_weights": {
+            "type": "array",
+            "items": {"type": "number"},
+            "description": "Optional explicit per-level weights overriding dependency_depth_decay.",
+        },
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # MCP SDK path (preferred)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -96,7 +133,7 @@ def _build_mcp_server() -> Server:
     """Construct an MCP ``Server`` with all four tools registered."""
     server = Server("context-refactor")
 
-    @server.list_tools()
+    @server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
     async def list_tools() -> list[Tool]:
         return [
             Tool(
@@ -128,6 +165,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -147,6 +185,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -165,6 +204,7 @@ def _build_mcp_server() -> Server:
                         },
                         "top_n": {"type": "integer", "default": 50},
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -187,6 +227,7 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -213,6 +254,7 @@ def _build_mcp_server() -> Server:
                         },
                         "top_n": {"type": "integer", "default": 50},
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
@@ -235,15 +277,16 @@ def _build_mcp_server() -> Server:
                             "default": "bytes",
                         },
                         **_analysis_scope_properties(),
+                        **_dependency_analysis_properties(),
                     },
                     "required": ["project_path"],
                 },
             ),
         ]
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-        dispatchers = {
+    @server.call_tool()  # type: ignore[untyped-decorator]
+    async def call_tool(name: str, arguments: JsonObject) -> list[TextContent]:
+        dispatchers: dict[str, ToolHandler] = {
             "context_refactor.analyze_project": analyze_project,
             "context_refactor.context_budget": context_budget,
             "context_refactor.detect_refactor_candidates": detect_refactor_candidates_tool,
@@ -271,7 +314,7 @@ def _build_mcp_server() -> Server:
 
 def _fallback_jsonrpc_loop() -> None:
     """Minimal JSON-RPC/stdio loop for environments without the mcp SDK."""
-    dispatchers = {
+    dispatchers: dict[str, ToolHandler] = {
         "context_refactor.analyze_project": analyze_project,
         "context_refactor.context_budget": context_budget,
         "context_refactor.detect_refactor_candidates": detect_refactor_candidates_tool,
