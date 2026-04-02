@@ -4,7 +4,7 @@ Data: 2026-04-01
 
 Relatorio base de comparacao:
 
-- [relatorio-refactoring-autoanalise-2026-03-31.md](/home/wlc/projetos/github/context-refactor/reports/relatorio-refactoring-autoanalise-2026-03-31.md)
+- [relatorio-refactoring-autoanalise-2026-03-31.md](./relatorio-refactoring-autoanalise-2026-03-31.md)
 
 ## Como a comparacao foi executada
 
