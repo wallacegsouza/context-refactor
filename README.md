@@ -4,200 +4,122 @@
 [![Code Quality](https://github.com/wallacegsouza/context-refactor/actions/workflows/quality.yml/badge.svg)](https://github.com/wallacegsouza/context-refactor/actions/workflows/quality.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-**Semantic, technology-aware codebase refactoring to fit inside a single LLM context window.**
 
-ContextRefactor analyses your project's token footprint using `token_report.py`, detects code smells and structural issues, and generates a step-by-step refactoring plan to reduce the codebase's effective size.
+Analise semantica e refatoracao orientada a contexto para codebases que
+precisam caber em uma janela de contexto de LLM.
 
----
+O projeto combina `token_report.py`, analise estrutural, recomendacoes
+heuristicas e um servidor MCP para responder perguntas praticas:
 
-## Architecture
+- o repositorio cabe no contexto alvo?
+- quais arquivos concentram mais custo de entendimento e refatoracao?
+- qual sequencia de refactors reduz melhor o tamanho efetivo do projeto?
 
-```
-ContextRector/
-├── context_refactor/        # Core domain logic
-│   ├── models.py            # Typed dataclasses (immutable domain models)
-│   ├── analyzer.py          # Wrapper around token_report.py
-│   ├── context_budget.py    # Budget computation (fits / overflow)
-│   ├── markdown_refactor.py # Markdown topic-splitting recommendations
-│   ├── code_refactor.py     # AST + regex code-smell detection
-│   ├── refactor_engine.py   # Orchestrator routing files → analysers
-│   └── refactor_planner.py  # Groups recommendations into ordered steps
-├── mcp_server/              # Model Context Protocol server
-│   ├── server.py            # Stdio MCP transport (+ fallback JSON-RPC)
-│   └── tools.py             # Four MCP tools bridging to core logic
-├── cli/                     # Typer CLI
-│   └── main.py              # Commands: analyze, budget, candidates, plan, serve
-├── token_report.py          # External token analysis script (source of truth)
-├── pyproject.toml
-└── README.md
-```
-
-## Installation
+## Instalacao
 
 ```bash
-# Create a virtual environment
-python3 -m venv .venv && source .venv/bin/activate
-
-# Install in editable mode (from repository root)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install -e ".[dev,mcp]"
 ```
 
-## Development
+Requisitos:
 
-### Running Tests Locally
+- Python 3.11+
+- `mcp` e opcional para o servidor MCP nativo
+- `matplotlib` e opcional para graficos do `token_report.py`
 
-```bash
-# Install test dependencies
-pip install -e ".[dev,mcp]"
+## Inicio rapido
 
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=context_refactor --cov=mcp_server --cov=cli
-
-# Run specific test file
-pytest tests/test_analyzer.py -v
-
-# Run tests matching a pattern
-pytest tests/ -k "profile" -v
-```
-
-### Code Quality Checks
+Analise completa:
 
 ```bash
-# Lint with ruff
-ruff check context_refactor tests cli mcp_server
-
-# Format check
-ruff format --check context_refactor tests cli mcp_server
-
-# Type check with mypy
-mypy context_refactor mcp_server cli --ignore-missing-imports
+context-refactor analyze /path/to/project --profile default
 ```
 
-### Pre-commit Hook (Optional)
-
-Add this to `.git/hooks/pre-commit`:
+Budget apenas:
 
 ```bash
-#!/bin/bash
-set -e
-echo "Running linter..."
-ruff check context_refactor tests cli mcp_server
-echo "Running type checker..."
-mypy context_refactor mcp_server cli --ignore-missing-imports
-echo "Running tests..."
-pytest tests/ -q
+context-refactor budget /path/to/project --context-size 128000 --safety-margin 0.8
 ```
 
-Make it executable:
+Heuristicas por arquivo:
 
 ```bash
-chmod +x .git/hooks/pre-commit
+context-refactor smells /path/to/project --top 20
 ```
 
-## CLI Usage
-
-### Full analysis
+Plano por heuristicas:
 
 ```bash
-context-refactor analyze /path/to/project
+context-refactor suggest /path/to/project --profile source-only
 ```
 
-### Check context budget only
-
-```bash
-context-refactor budget /path/to/project --context-size 200000 --safety-margin 0.75
-```
-
-### Detect refactoring candidates
-
-```bash
-context-refactor candidates /path/to/project --estimator heuristic --top 30
-```
-
-### Generate refactoring plan
-
-```bash
-context-refactor plan /path/to/project --context-size 128000
-```
-
-### Start MCP server
+Servidor MCP:
 
 ```bash
 context-refactor serve
 ```
 
-### JSON output
+Todos os comandos aceitam `--json`.
 
-Every command supports `--json` for machine-readable output:
+## Perfis de analise
 
-```bash
-context-refactor analyze /path/to/project --json > report.json
-```
-
-### Noise reduction profiles
-
-The CLI and MCP tools support analysis profiles plus repo-local configuration so
-generated artifacts and oversized planning docs do not dominate normal runs.
-
-```bash
-context-refactor analyze /path/to/project --profile default
-context-refactor analyze /path/to/project --profile source-only
-context-refactor analyze /path/to/project --config /path/to/.context-refactor.json
-```
-
-Available profiles:
-
-| Profile | Behavior |
+| Perfil | Uso recomendado |
 |---|---|
-| `default` | Excludes common generated artifacts and keeps source + markdown |
-| `full` | Includes everything the scanner can see |
-| `source-only` | Restricts results to `source_code` files |
-| `docs` | Restricts results to markdown files |
+| `default` | Fluxo diario com reducao de ruido e visao ampla de codigo + markdown |
+| `full` | Auditoria completa sem exclusoes padrao |
+| `source-only` | Refatoracao de codigo de producao |
+| `docs` | Revisao e modularizacao de documentacao |
 
-Repo-local config example:
+Arquivo opcional por repositorio:
 
 ```json
 {
   "analysis": {
     "analysis_profile": "default",
-    "exclude_dirs": ["coverage", "lcov-report", "reports", "token-report"],
+    "exclude_dirs": ["coverage", "reports", "token-report"],
     "exclude_globs": ["docs/planning", "docs/planning/*"],
-    "exclude_files": ["backend/lint.result.txt", "*.map"],
-    "include_categories": ["source_code"],
+    "exclude_files": ["*.map", "*.snap"],
+    "include_categories": ["source_code", "markdown"],
     "exclude_categories": ["other"]
   }
 }
 ```
 
----
+## Modos de dependencia
 
-## MCP Tools
+As ferramentas publicas aceitam configuracao opcional de dependencias:
 
-The server exposes four tools via the Model Context Protocol:
+- `off`: desabilita enriquecimento por dependencias
+- `report_only`: calcula metadados sem alterar a ordenacao legacy
+- `blended`: combina tokens brutos e acoplamento
+- `weighted`: prioriza o tamanho efetivo orientado a dependencia
 
-| Tool | Description |
+Parametros relacionados:
+
+- `dependency_mode`
+- `dependency_max_depth`
+- `dependency_max_multiplier`
+- `dependency_base_weight`
+- `dependency_depth_decay`
+- `dependency_depth_weights`
+
+## Tools MCP expostas
+
+O servidor expoe 6 tools publicas:
+
+| Tool | Objetivo |
 |---|---|
-| `context_refactor.analyze_project` | Full analysis: tokens, budget, recommendations, plan |
-| `context_refactor.context_budget` | Check if the project fits inside an LLM context window |
-| `context_refactor.detect_refactor_candidates` | Detect code smells and refactoring candidates |
-| `context_refactor.generate_refactor_plan` | Step-by-step plan to fit the context window |
+| `context_refactor.analyze_project` | Analise completa com budget, hotspots, recomendacoes e plano |
+| `context_refactor.context_budget` | Calculo rapido de cabimento no contexto |
+| `context_refactor.detect_refactor_candidates` | Candidatos de refatoracao pela pipeline legacy |
+| `context_refactor.generate_refactor_plan` | Plano sequencial para caber no contexto |
+| `context_refactor.detect_code_smells` | Smells por arquivo via Heuristics Engine |
+| `context_refactor.generate_refactor_suggestions` | Sugestoes heuristicas + plano |
 
-All analysis tools also accept optional scope parameters:
-
-- `analysis_profile`
-- `config_path`
-- `exclude_dirs`
-- `exclude_globs`
-- `exclude_files`
-- `include_categories`
-- `exclude_categories`
-
-### MCP Client Configuration (VS Code / Claude Desktop)
-
-Add the following to your MCP client configuration (e.g., in VS Code settings or Claude Desktop config):
+Configuracao generica de host MCP:
 
 ```json
 {
@@ -214,263 +136,79 @@ Add the following to your MCP client configuration (e.g., in VS Code settings or
 }
 ```
 
-The `${workspaceFolder}` macro will be replaced with your project's root directory. If you're running from a different environment, ensure the Python path resolves correctly and the `mcp` package is installed in that environment's virtual environment.
+Se o SDK `mcp` nao estiver instalado, o servidor entra em fallback JSON-RPC
+via stdin/stdout.
 
----
+## Arquitetura atual
 
-## How It Works
+O projeto foi modularizado para preservar contratos publicos enquanto a
+implementacao interna foi dividida por dominio.
 
-### 1. Token Analysis
-
-The tool delegates token counting entirely to `token_report.py`. It runs the script as a subprocess, parses the JSON output, and classifies each file into:
-
-| Category | Treatment |
-|---|---|
-| **Source code** (`.py`, `.ts`, `.js`, `.java`, `.go`, …) | AST / regex analysis → code smell detection |
-| **Markdown** (`.md`, `.mdx`) | Heading-based topic splitting |
-| **Configuration** (`.json`, `.yaml`, `.env`, …) | Included in token count, never modified |
-| **Binary** (images, compiled files) | Ignored entirely |
-
-### 2. Code Smell Detection
-
-For **Python** files, the tool uses full AST parsing. For other languages, it uses regex heuristics. Detected smells:
-
-| Smell | Threshold | Technique |
-|---|---|---|
-| God File | ≥ 600 lines or ≥ 4000 tokens | Extract Module |
-| Long Method | ≥ 60 lines | Extract Method |
-| Large Class | ≥ 300 lines or ≥ 15 methods | Extract Class |
-| Long Parameter List | ≥ 5 parameters | Extract Variable / Options Object |
-| Deep Nesting | ≥ 4 levels | Decompose Conditional |
-
-Refactoring techniques are drawn from [refactoring.guru/refactoring/catalog](https://refactoring.guru/refactoring/catalog).
-
-### 3. Markdown Splitting
-
-Large Markdown files with ≥ 3 top-level headings and ≥ 800 tokens are recommended for topic-based splitting. The original file becomes an index linking to the extracted topic files.
-
-### 4. Context Budget
-
-```
-context_budget = llm_context_size × safety_margin
-overflow_tokens = max(0, total_tokens - context_budget)
-overflow_ratio  = overflow_tokens / context_budget
-```
-
-### 5. Refactoring Plan
-
-Recommendations are grouped into ordered steps:
-
-1. **Split large Markdown** documentation into topic modules
-2. **Extract modules** from oversized God Files
-3. **Extract Classes** from large monolithic classes
-4. **Extract Methods** from long functions
-5. **Move logic** into shared utilities
-6. **Flatten** deeply nested conditionals
-7. **Simplify** parameter lists and temporaries
-
----
-
-## Example Output
-
-```json
-{
-  "project_summary": {
-    "files": 320,
-    "total_tokens": 182000,
-    "context_budget": 102400,
-    "fits_context": false
-  },
-  "refactor_plan": {
-    "steps": [
-      {
-        "step_number": 1,
-        "title": "Split large Markdown documentation into topic modules",
-        "techniques": ["Split Document"],
-        "affected_files": ["docs/README.md", "AGENTS.md"],
-        "estimated_token_reduction": 1200
-      },
-      {
-        "step_number": 2,
-        "title": "Extract modules from oversized God Files",
-        "techniques": ["Extract Module"],
-        "affected_files": ["backend/src/database/database.service.ts"],
-        "estimated_token_reduction": 8500
-      }
-    ],
-    "total_estimated_token_reduction": 24500,
-    "projected_tokens_after": 157500,
-    "fits_context_after": false
-  }
-}
+```text
+context-refactor/
+├── cli/
+│   ├── main.py                 # entrypoint/facade do script context-refactor
+│   ├── app.py                  # fabrica do app Typer
+│   ├── commands/
+│   │   ├── analysis.py         # analyze, budget, candidates
+│   │   ├── heuristics.py       # smells, suggest, plan
+│   │   └── server.py           # serve
+│   ├── options.py              # opcoes compartilhadas
+│   ├── rendering.py            # saida rich/tabular
+│   └── shared.py               # execucao e normalizacao compartilhadas
+├── context_refactor/
+│   ├── analyzer.py             # facade publica da pipeline de analise
+│   ├── analyzer_*.py           # classificacao, config, metricas e runner
+│   ├── dependency_analyzer.py  # facade publica de dependencias
+│   ├── dependency_*.py         # extracao, resolucao, grafo e pesos
+│   ├── models.py               # facade publica de modelos
+│   ├── model_*.py              # tipos de tokens, resultados e refatoracao
+│   ├── refactor_heuristics.py  # facade publica do Heuristics Engine
+│   ├── refactor_heuristics_*   # engine e helpers do dominio
+│   ├── refactor_engine.py      # candidatos legacy
+│   ├── refactor_planner.py     # montagem do plano
+│   └── refactor_rules/         # regras plugaveis
+├── mcp_server/
+│   ├── server.py               # stdio MCP + fallback JSON-RPC
+│   ├── tools.py                # facade publica das tools MCP
+│   ├── tools_analysis.py       # tools de analise e plano legacy
+│   ├── tools_heuristics.py     # tools do Heuristics Engine
+│   ├── tool_support.py         # facade de helpers MCP
+│   └── tool_support_*          # helpers de analise, heuristicas e legado
+├── token_report.py             # fonte de verdade da contagem bruta
+└── docs/                       # documentacao canonica do projeto
 ```
 
----
+## Qualidade e validacao
 
-## Design Principles
-
-- **Clean Architecture**: Core logic has zero I/O dependencies; the MCP server and CLI are thin adapters.
-- **SOLID**: Each module has a single responsibility; the refactor engine is open for extension via new analysers.
-- **Immutable models**: All domain objects are frozen dataclasses.
-- **Dependency Injection**: The analyser, engine, and planner are composed via function arguments, not globals.
-- **No token reimplementation**: `token_report.py` is the single source of truth for token counting.
-
-## Requirements
-
-- Python 3.11+
-- `typer[all]` + `rich` (CLI)
-- `mcp` (optional, for full MCP SDK support — falls back to JSON-RPC without it)
-
-## Advanced Tuning
-
-See [TUNING_GUIDE.md](TUNING_GUIDE.md) for:
-
-- profile strategy by use case
-- repo config precedence
-- category filters and scope metadata interpretation
-- quality checklist for low-noise analyses
-
----
-
-## Troubleshooting
-
-### Installation Issues
-
-**"No module named 'context_refactor'"**
-
-Ensure you have activated the virtual environment and installed the package:
+Comandos mais usados:
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,mcp]"
-```
-
-### Execution Issues
-
-**"FileNotFoundError: token_report.py not found"**
-
-The token analysis script cannot be located. This usually means the package installation is corrupted:
-
-```bash
-pip install --force-reinstall -e .
-```
-
-**"context-refactor: command not found"**
-
-The CLI entry point is not available. Reinstall with editable mode:
-
-```bash
-pip install -e .
-```
-
-**"mcp SDK not installed — running in fallback JSON-RPC mode"**
-
-This is **normal** and non-blocking. The MCP server functions via JSON-RPC fallback. To use the full MCP SDK:
-
-```bash
-pip install mcp>=1.0.0
-```
-
-### Configuration Issues
-
-**"ValueError: Unknown category 'my_category'"**
-
-The `.context-refactor.json` mentions an invalid category. Valid categories are:
-- `source_code`
-- `markdown`
-- `configuration`
-- `binary`
-- `other`
-
-**"ValueError: Unknown analysis profile"**
-
-Valid profiles are: `default`, `full`, `source-only`, `docs`.
-
-### Performance Issues
-
-**Analysis is very slow or times out**
-
-The default timeout is 120 seconds. For very large projects:
-
-1. Use the `source-only` profile to reduce scope:
-   ```bash
-   context-refactor analyze /path --profile source-only
-   ```
-
-2. Exclude additional directories:
-   ```bash
-   context-refactor analyze /path --exclude-dirs "coverage,reports,build"
-   ```
-
-3. Reduce the `--max-mb` in token_report.py (if running directly)
-
----
-
-## Project Independence
-
-ContextRactor is a **fully autonomous product** and does not depend on any external systems or projects:
-
-- **All dependencies** are declared in `pyproject.toml` and installed via pip
-- **No hardcoded paths** to external resources
-- **No hidden environment assumptions** — works out of the box with `pip install`
-- **Fallback mechanisms** for optional features (e.g., matplotlib for charts, MCP SDK for full server)
-- **Clear error messages** for configuration mistakes
-
-For detailed information about architecture and design decisions, see [TUNING_GUIDE.md](TUNING_GUIDE.md) and [TOKEN_REPORT.md](TOKEN_REPORT.md).
-
----
-
-## Continuous Integration
-
-All commits and pull requests are automatically tested via GitHub Actions:
-
-- **Test Suite** (`.github/workflows/test.yml`): Runs pytest on Python 3.11, 3.12, and 3.13
-- **Code Quality** (`.github/workflows/quality.yml`): Runs ruff linter and security scans
-- Validates clean installation in isolated virtual environments
-
-View workflow results on the [Actions](https://github.com/YOUR_ORG/context-refactor/actions) tab.
-
-### Local CI Checks
-
-Run all CI checks locally:
-
-```bash
-# Using make
+make test
+make test-cov
+make lint
+make format
+make type-check
 make ci
-
-# Or manually
-ruff check context_refactor tests cli mcp_server
-mypy context_refactor mcp_server cli --ignore-missing-imports
-pytest tests/ -v
 ```
 
----
-
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup
-- Code quality guidelines
-- Testing requirements
-- PR process
-- How to add new refactor rules
-
-Quick start for contributors:
+Ou diretamente:
 
 ```bash
-# Clone and setup
-git clone https://github.com/YOUR_ORG/context-refactor.git
-cd context-refactor
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,mcp]"
-
-# Run tests and quality checks
-make all
+pytest tests/ -v
+ruff check context_refactor tests cli mcp_server token_report.py
+ruff format --check context_refactor tests cli mcp_server token_report.py
+mypy context_refactor mcp_server cli --ignore-missing-imports
 ```
 
----
+## Documentacao
 
-## License
+A documentacao canonica detalhada esta em [docs/INDEX.md](docs/INDEX.md).
 
-MIT License — see LICENSE file for details.
+Pontos de entrada recomendados:
+
+- [Visao geral](docs/visao-geral.md)
+- [Guia do usuario](docs/usuario/guia-do-usuario.md)
+- [Ferramentas MCP](docs/usuario/ferramentas.md)
+- [Arquitetura](docs/desenvolvedor/arquitetura.md)
+

@@ -1,62 +1,68 @@
-# ContextRefactor Documentation
+# Documentacao do ContextRefactor
 
-Documentacao oficial do projeto ContextRefactor como servidor MCP (Model Context Protocol), segmentada por audiencia e objetivo.
+Documentacao canonica do ContextRefactor organizada por audiencia e objetivo.
 
-Official documentation for ContextRefactor as an MCP server, organized by audience and objective.
+## Navegacao rapida
 
-## Quick Navigation
+### Visao geral
 
 - [Visao Geral](./visao-geral.md)
 - [Guia do Usuario](./usuario/guia-do-usuario.md)
 - [Ferramentas MCP](./usuario/ferramentas.md)
 - [Exemplos de Uso](./usuario/exemplos-de-uso.md)
+
+### Integracao
+
 - [Configuracao em Clientes/Hosts](./integracao/configuracao-em-clientes.md)
 - [Contratos e Comunicacao MCP](./integracao/contratos.md)
+
+### Desenvolvimento
+
 - [Arquitetura](./desenvolvedor/arquitetura.md)
 - [Modulos](./desenvolvedor/modulos.md)
-- [Setup de Desenvolvimento](./desenvolvedor/setup.md)
 - [Fluxos Internos](./desenvolvedor/fluxos.md)
+- [Setup de Desenvolvimento](./desenvolvedor/setup.md)
 - [Adicionar Nova Tool](./desenvolvedor/adicionar-nova-tool.md)
-- [Plano: Token Report com Dependencias](./plano-novo-token-report.md)
 - [Qualidade e Testes](./desenvolvedor/qualidade-e-testes.md)
 - [Manutencao e Evolucao](./desenvolvedor/manutencao.md)
+
+### Operacao
+
 - [Operacao e Troubleshooting](./operacao/troubleshooting.md)
 
-## Audience Guide
+## Documentacao canonica vs historico
 
-- Usuario final: comece por [Guia do Usuario](./usuario/guia-do-usuario.md).
-- Integrador MCP: comece por [Configuracao em Clientes/Hosts](./integracao/configuracao-em-clientes.md).
-- Desenvolvedor: comece por [Arquitetura](./desenvolvedor/arquitetura.md) e [Setup](./desenvolvedor/setup.md).
+Use `README.md` e os documentos desta arvore `docs/` como fonte de verdade do
+estado atual do projeto.
 
-User-facing path: start with the user guide. Integrators: start with MCP client configuration. Developers: start with architecture and setup.
+O documento abaixo e historico e descreve a evolucao da feature, nao o desenho
+canonico atual:
 
-## Scope Coverage Matrix
+- [Plano: Evolucao do Token Report com Peso de Dependencias](./plano-novo-token-report.md)
 
-- Proposito, publico e limitacoes: [Visao Geral](./visao-geral.md)
-- Uso das tools/capabilities: [Ferramentas MCP](./usuario/ferramentas.md)
-- Integracao com hosts/clientes: [Configuracao](./integracao/configuracao-em-clientes.md), [Contratos](./integracao/contratos.md)
-- Arquitetura, modulos e fluxos: [Arquitetura](./desenvolvedor/arquitetura.md), [Modulos](./desenvolvedor/modulos.md), [Fluxos](./desenvolvedor/fluxos.md)
-- Setup, execucao e testes: [Setup](./desenvolvedor/setup.md), [Qualidade e Testes](./desenvolvedor/qualidade-e-testes.md)
-- Operacao e troubleshooting: [Troubleshooting](./operacao/troubleshooting.md)
-- Manutencao e evolucao: [Manutencao](./desenvolvedor/manutencao.md), [Adicionar Nova Tool](./desenvolvedor/adicionar-nova-tool.md)
-- Plano de evolucao do token report: [Token Report com Dependencias](./plano-novo-token-report.md)
+## Guia por audiencia
 
-## Capability Status (Current Project)
+- Usuario final: comece por [Guia do Usuario](./usuario/guia-do-usuario.md)
+- Integrador MCP: comece por
+  [Configuracao em Clientes/Hosts](./integracao/configuracao-em-clientes.md)
+- Desenvolvedor: comece por [Arquitetura](./desenvolvedor/arquitetura.md) e
+  [Setup](./desenvolvedor/setup.md)
 
-### Implemented
+## Estado atual de capability
 
-- MCP tools via `list_tools` + `call_tool`.
-- Stdio transport (SDK mode) and JSON-RPC fallback mode.
-- Analysis profiles and scope filters.
+Implementado:
 
-### Not Implemented (as of this version)
+- 6 tools MCP publicas via `list_tools` e `call_tool`
+- transporte stdio no modo SDK
+- fallback JSON-RPC em stdin/stdout
+- perfis de analise, filtros de escopo e modos de dependencia
 
-- MCP resources
-- MCP prompts
-- MCP templates
-- streaming responses
-- events/pub-sub
+Nao implementado:
+
+- resources
+- prompts
+- templates
+- streaming
+- eventos
 - context providers
 - auth flows
-
-This is intentional current scope, not a runtime error.

@@ -1,165 +1,122 @@
-# Token Report — Documentação
+# Token Report
 
-Utilitário CLI para estimar a contagem de tokens de todos os arquivos de texto de um projeto. Gera relatórios em CSV, JSON e Markdown, com suporte opcional a gráficos.
+Utilitario CLI para estimar a contagem de tokens de todos os arquivos de texto
+de um projeto. Gera relatorios em CSV, JSON e Markdown, com suporte opcional a
+graficos.
 
-## Uso Básico
+## Uso basico
 
 ```bash
-# A partir da raiz do projeto
-python token_report.py
+python3 token_report.py
 ```
 
-Isso escaneia o diretório atual e gera os relatórios em `token-report/`.
+O comando escaneia o diretorio atual e gera os arquivos em `token-report/`.
 
-## Saídas Geradas
+## Saidas geradas
 
-| Arquivo | Descrição |
+| Arquivo | Descricao |
 |---|---|
-| `token-report/files.csv` | Lista de todos os arquivos com tokens, bytes e caracteres |
-| `token-report/files.json` | Mesmo conteúdo em JSON, incluindo agregação por diretório |
-| `token-report/summary.md` | Resumo em Markdown com tabelas dos maiores arquivos e diretórios |
+| `token-report/files.csv` | Lista de arquivos com tokens, bytes e caracteres |
+| `token-report/files.json` | Mesmo conteudo em JSON, incluindo agregacoes |
+| `token-report/summary.md` | Resumo em Markdown com top arquivos e diretorios |
 
-## Opções Principais
+## Opcoes principais
 
-| Flag | Padrão | Descrição |
+| Flag | Padrao | Descricao |
 |---|---|---|
-| `--root` | `.` | Diretório raiz do projeto |
-| `--estimator` | `bytes` | Método de estimativa: `bytes`, `chars`, `whitespace`, `heuristic` |
-| `--include-ext` | várias | Extensões a incluir (ex: `.py,.ts,.md`) |
-| `--exclude-dirs` | `node_modules`, `dist`, `.git`, etc. | Diretórios a ignorar |
-| `--exclude-globs` | — | Padrões glob extras para exclusão (ex: `*.lock,*.min.*`) |
-| `--exclude-files` | — | Arquivos específicos a excluir |
-| `--extra-exclude-dirs` | — | Diretórios extras adicionados às exclusões padrão |
-| `--extra-exclude-globs` | — | Globs extras adicionados às exclusões padrão |
-| `--extra-exclude-files` | — | Arquivos extras adicionados às exclusões padrão |
+| `--root` | `.` | Diretorio raiz do projeto |
+| `--estimator` | `bytes` | `bytes`, `chars`, `whitespace` ou `heuristic` |
+| `--include-ext` | varias | Extensoes a incluir |
+| `--exclude-dirs` | padrao interno | Diretorios ignorados |
+| `--exclude-globs` | vazio | Globs extras de exclusao |
+| `--exclude-files` | vazio | Arquivos ou padroes especificos |
+| `--extra-exclude-dirs` | vazio | Diretorios extras somados ao padrao |
+| `--extra-exclude-globs` | vazio | Globs extras somados ao padrao |
+| `--extra-exclude-files` | vazio | Arquivos extras somados ao padrao |
 | `--use-gitignore` | desativado | Respeitar regras do `.gitignore` |
-| `--max-mb` | `5` | Tamanho máximo por arquivo (MB) |
-| `--depth` | `2` | Profundidade de agregação de diretórios |
+| `--max-mb` | `5` | Tamanho maximo por arquivo em MB |
+| `--depth` | `2` | Profundidade de agregacao de diretorios |
 | `--top` | `25` | Quantidade de itens exibidos no terminal |
-| `--chart` | desativado | Gerar gráficos PNG (requer `matplotlib`) |
-| `--chart-kind` | `bar` | Tipo de gráfico: `bar` ou `pie` |
-| `--no-json` | — | Não gerar saída JSON |
-| `--no-md` | — | Não gerar saída Markdown |
+| `--chart` | desativado | Gerar graficos PNG |
+| `--chart-kind` | `bar` | `bar` ou `pie` |
+| `--no-json` | desativado | Nao gerar JSON |
+| `--no-md` | desativado | Nao gerar Markdown |
 
-## Estimadores de Tokens
+## Estimadores
 
-| Estimador | Lógica |
+| Estimador | Logica |
 |---|---|
-| `bytes` | `ceil(bytes_utf8 / 4)` — rápido e razoável para a maioria dos LLMs |
+| `bytes` | `ceil(bytes_utf8 / 4)` |
 | `chars` | `ceil(caracteres / 4)` |
-| `whitespace` | Conta tokens separados por espaços em branco |
-| `heuristic` | Combina bytes + splitting por `_` e camelCase (mais preciso para código) |
+| `whitespace` | Conta tokens separados por espaco |
+| `heuristic` | Combina bytes e heuristicas para codigo |
 
 ## Exemplos
 
-### Escanear com gitignore e estimador heurístico
+Com `.gitignore` e estimador heuristico:
 
 ```bash
-python token_report.py --use-gitignore --estimator heuristic
+python3 token_report.py --use-gitignore --estimator heuristic
 ```
 
-### Gerar gráficos dos top 15 itens
+Somente arquivos TypeScript e Markdown:
 
 ```bash
-python token_report.py --chart --chart-top 15 --chart-kind bar
+python3 token_report.py --include-ext .ts,.tsx,.md
 ```
 
-### Escanear apenas arquivos TypeScript e Markdown
+Exclusoes extras sem sobrescrever defaults:
 
 ```bash
-python token_report.py --include-ext .ts,.tsx,.md
+python3 token_report.py --extra-exclude-dirs "coverage,reports" --extra-exclude-files "*.snap"
 ```
 
-### Excluir arquivos de teste e lock
+## Integracao com ContextRefactor
 
-```bash
-python token_report.py --exclude-globs "*.spec.ts,*.lock" --exclude-files "package-lock.json"
-```
+`token_report.py` continua sendo a fonte de verdade da contagem bruta de
+tokens. O restante do projeto consome esse output e enriquece a analise com:
 
-### Somar exclusões extras sem sobrescrever defaults
+- classificacao por categoria de arquivo
+- filtros por perfil e configuracao local
+- budget de contexto
+- metadados de dependencia
+- recomendacoes legacy e heuristicas
 
-```bash
-python token_report.py --extra-exclude-dirs "coverage,reports" --extra-exclude-files "*.snap"
-```
+### Como o core executa o script
 
-### Relatório rápido sem JSON/Markdown
+- a chamada publica passa por `context_refactor.analyzer`
+- a execucao do subprocess fica em `context_refactor/analyzer_runner.py`
+- o script e localizado relativamente ao pacote, nao por `PATH`
+- a chamada usa `python3`, `--use-gitignore` e arquivos temporarios para JSON,
+  CSV e Markdown
 
-```bash
-python token_report.py --no-json --no-md --top 10
-```
+### Contrato esperado pelo core
 
-## Saída no Terminal
+- execucao deterministica para o mesmo conjunto de entradas
+- arquivo JSON valido em disco ao final da execucao
+- codigo de retorno `0` em sucesso
+- timeout de `120` segundos no subprocess
 
-O script imprime um resumo direto no terminal:
+### Localizacao do script
 
-```
-Estimator: bytes
-Files: 342
-Total tokens (est.): 185,420
-Total bytes: 741,680
+O core resolve `token_report.py` a partir do diretorio do pacote
+`context_refactor`. Isso preserva funcionamento tanto em desenvolvimento quanto
+em instalacao editavel.
 
-Top files by tokens (est.):
-     8,234      32,936  src/components/big-form.tsx
-     ...
+### Dependencias opcionais
 
-Top directories by tokens (est.):
-    42,100     120  frontend/src
-     ...
-```
+`matplotlib` e opcional. Se nao estiver instalado:
 
-## Requisitos
+- o restante do script continua funcionando
+- apenas a geracao de graficos fica indisponivel
 
-- **Python 3.11+**
-- **matplotlib** (opcional, apenas para `--chart`)
+## Limitacoes conhecidas
 
-```bash
-pip install matplotlib  # opcional para gráficos
-```
+- timeout fixo de `120s`
+- leitura assumindo UTF-8/ASCII para arquivos de texto
+- tamanho maximo por arquivo controlado por `--max-mb`
+- symlinks nao sao seguidos por padrao
 
----
+Para o restante do sistema, consulte [README.md](README.md) e
+[docs/INDEX.md](docs/INDEX.md).
 
-## Integração com ContextRefactor
-
-### Contrato de Execução
-
-O `token_report.py` é invocado como subprocess isolado pelo módulo `context_refactor.analyzer`. Garantias:
-
-1. **Execução determinística** — Mesmos parâmetros = mesmos resultados
-2. **JSON bem-formado** — stdout sempre contém JSON válido em arquivo de saída
-3. **Timeout de 120 segundos** — Projetos maiores serão truncados com aviso
-4. **Código de retorno** — 0 para sucesso, não-zero para erro
-
-### Localização
-
-O script é **sempre localizado relativamente ao pacote**, nunca por PATH.
-
-Estrutura esperada:
-
-```
-context-refactor/
-├── context_refactor/analyzer.py   (procura ../token_report.py)
-├── token_report.py                (aqui)
-└── pyproject.toml
-```
-
-Se instalado via `pip install -e .`, o script é encontrado automaticamente.
-
-### Requisitos de Dependência
-
-matplotlib é **opcional**. Se não instalado:
-- `--chart` é silenciosamente ignorado
-- Um aviso é enviado para stderr
-- Programa continua normalmente
-
-Para gráficos, instalar antes:
-
-```bash
-pip install matplotlib
-```
-
-### Limitações Conhecidas
-
-1. **Timeout fixo de 120s** — Não configurável. Para projetos muito grandes, use `--max-mb` menor
-2. **Encoding UTF-8** — Presume UTF-8/ASCII. Outros encodings são ignorados
-3. **Tamanho máximo de arquivo: 5MB** — Ajuste com `--max-mb`
-4. **Symlinks não seguidos por padrão** — Use `--follow-symlinks` se necessário

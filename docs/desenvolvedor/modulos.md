@@ -1,55 +1,71 @@
 # Modulos
 
-## Mapa de Modulos
+## Mapa atual por dominio
 
-### `context_refactor/models.py`
+### CLI
 
-- Objetivo: tipos de dominio (FileTokenInfo, ContextBudget, RefactorPlan etc.).
-- Cuidados: manter compatibilidade de serializacao (`to_dict`) para consumidores MCP/CLI.
+- `cli/main.py`: entrypoint publico do comando `context-refactor`
+- `cli/app.py`: fabrica do app Typer e registro global
+- `cli/commands/analysis.py`: comandos `analyze`, `budget`, `candidates`
+- `cli/commands/heuristics.py`: comandos `smells`, `suggest`, `plan`
+- `cli/commands/server.py`: comando `serve`
+- `cli/options.py`: argumentos e opcoes reutilizaveis
+- `cli/shared.py`: normalizacao, execucao de tool e contexto comum
+- `cli/rendering.py`: saida textual e tabular
 
-### `context_refactor/analyzer.py`
+### Core de analise
 
-- Objetivo: invocar `token_report.py`, classificar arquivos, resolver escopo/perfis.
-- Dependencias: subprocess Python, config `.context-refactor.json`.
-- Cuidados: validacao de categorias e robustez de erro de subprocess.
+- `context_refactor/analyzer.py`: fachada publica da analise
+- `context_refactor/analyzer_runner.py`: execucao do `token_report.py`
+- `context_refactor/analyzer_config.py`: perfis, filtros e opcoes de dependencia
+- `context_refactor/analyzer_classification.py`: classificacao de arquivos
+- `context_refactor/analyzer_metrics.py`: montagem de metricas e enriquecimento
+- `context_refactor/context_budget.py`: calculo de cabimento
 
-### `context_refactor/refactor_engine.py`
+### Core de dependencias
 
-- Objetivo: detectar candidatos via analise por categoria de arquivo.
-- Relacoes: usa analise de codigo e markdown.
+- `context_refactor/dependency_analyzer.py`: fachada publica
+- `context_refactor/dependency_extraction.py`: extracao estrutural
+- `context_refactor/dependency_resolution.py`: resolucao de modulos para arquivo
+- `context_refactor/dependency_graph_builder.py`: grafo de dependencias
+- `context_refactor/dependency_weighting.py`: pesos, profundidade e prioridade
 
-### `context_refactor/refactor_heuristics.py`
+### Modelos
 
-- Objetivo: orquestrar regras plugaveis (`RefactorRule`) e consolidar `HeuristicResult`.
-- Cuidados: deduplicacao de recomendacoes e thresholds consistentes.
+- `context_refactor/models.py`: fachada publica de tipos
+- `context_refactor/model_tokens.py`: tokens, diretorios e budget
+- `context_refactor/model_analysis.py`: entidades de analise estrutural
+- `context_refactor/model_dependencies.py`: tipos de dependencia
+- `context_refactor/model_refactoring.py`: recomendacoes e plano
+- `context_refactor/model_results.py`: resultados agregados
+- `context_refactor/model_enums.py`: enums compartilhados
 
-### `context_refactor/refactor_rules/*`
+### Refatoracao e heuristicas
 
-- Objetivo: heuristicas especificas (large file, long method, large class, duplicate code).
-- Contrato: implementar `applies_to` e `evaluate`.
+- `context_refactor/refactor_engine.py`: candidatos legacy
+- `context_refactor/refactor_planner.py`: agrupamento em plano sequencial
+- `context_refactor/refactor_heuristics.py`: fachada publica do Heuristics Engine
+- `context_refactor/refactor_heuristics_engine.py`: engine principal
+- `context_refactor/refactor_heuristics_support.py`: helpers do engine
+- `context_refactor/refactor_rules/`: regras plugaveis
+- `context_refactor/code_refactor.py`: analise estrutural de codigo
+- `context_refactor/markdown_refactor.py`: recomendacoes para markdown
 
-### `context_refactor/refactor_planner.py`
+### MCP
 
-- Objetivo: transformar recomendacoes em plano sequencial.
-- Saida: passos com tecnicas, arquivos afetados e reducao estimada.
+- `mcp_server/server.py`: registro de schema, transporte stdio e fallback
+- `mcp_server/tools.py`: fachada publica das tools
+- `mcp_server/tools_analysis.py`: tools de analise e plano legacy
+- `mcp_server/tools_heuristics.py`: tools de heuristicas
+- `mcp_server/tool_support.py`: fachada de helpers MCP
+- `mcp_server/tool_support_analysis.py`: helpers de analise e payloads
+- `mcp_server/tool_support_heuristics.py`: criacao do Heuristics Engine
+- `mcp_server/tool_support_legacy.py`: compatibilidade com recomendacoes legacy
 
-### `mcp_server/server.py`
+## Cuidados de manutencao
 
-- Objetivo: registrar tools MCP e despachar chamadas.
-- Fluxos: modo SDK e fallback JSON-RPC.
+- preserve as fachadas publicas e seus nomes
+- mova implementacoes novas para modulos especializados por dominio
+- mantenha a CLI e o MCP alinhados nos argumentos publicos
+- atualize a documentacao quando houver nova superficie publica
 
-### `mcp_server/tools.py`
-
-- Objetivo: ponte entre payload primitivo e core do dominio.
-- Cuidados: manter assinatura e retorno estaveis por tool.
-
-### `cli/main.py`
-
-- Objetivo: comandos de uso humano (`analyze`, `budget`, `candidates`, `smells`, `suggest`, `plan`, `serve`).
-- Cuidados: manter alinhamento dos parametros com MCP tools.
-
-## Oportunidades de Reutilizacao/Desacoplamento
-
-- Isolar contrato de analise estrutural em interface publica.
-- Centralizar thresholds em configuracao unica.
-- Unificar normalizacao/validacao de entrada entre CLI e MCP.

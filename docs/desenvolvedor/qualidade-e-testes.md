@@ -1,27 +1,49 @@
 # Qualidade, Testes e Validacao
 
-## Suite de Testes Atual
+## Suite de testes atual
 
 - `tests/test_analyzer.py`
+- `tests/test_cli_main.py`
+- `tests/test_dependency_analyzer.py`
+- `tests/test_mcp_tools.py`
+- `tests/test_refactor_engine.py`
 - `tests/test_refactor_heuristics.py`
 - `tests/test_refactor_rules.py`
+- `tests/test_token_report.py`
 
-Test coverage focuses on analyzer behavior, heuristics engine, and rule correctness.
+## Cobertura atual por area
 
-## Estrategia Atual
+- pipeline de analise e escopo
+- CLI e roteamento de argumentos
+- analise de dependencias
+- wrappers MCP e contratos de resposta
+- engine legacy de candidatos
+- Heuristics Engine e regras plugaveis
+- `token_report.py`
 
-- unit/integration style para core de analise
-- validacao de perfis, categorias e limites
-- validacao de plano de refatoracao e deduplicacao de regras
+## Como executar
 
-## Como Executar
+Suite completa:
 
 ```bash
 pytest tests/ -v
-pytest tests/ -v --tb=short --cov=context_refactor --cov=mcp_server --cov=cli
 ```
 
-## Qualidade Estatica
+Com cobertura:
+
+```bash
+pytest tests/ -v --cov=context_refactor --cov=mcp_server --cov=cli --cov-report=term-missing
+```
+
+Arquivos especificos:
+
+```bash
+pytest tests/test_mcp_tools.py -v
+pytest tests/test_cli_main.py -v
+pytest tests/test_dependency_analyzer.py -v
+```
+
+## Qualidade estatica
 
 ```bash
 ruff check context_refactor tests cli mcp_server token_report.py
@@ -29,22 +51,30 @@ ruff format --check context_refactor tests cli mcp_server token_report.py
 mypy context_refactor mcp_server cli --ignore-missing-imports
 ```
 
-## Validacao de Contratos MCP
+Atalhos via `make`:
 
-Minimo recomendado para novas features:
+```bash
+make test
+make test-cov
+make lint
+make format
+make type-check
+make ci
+```
 
-1. Testar listagem da nova tool.
-2. Testar chamada com argumentos validos.
-3. Testar erro de argumento invalido.
-4. Testar serializacao da resposta.
+## Validacao de contratos MCP
 
-## Mocks/Stubs
+Minimo recomendado para qualquer mudanca publica:
 
-- Isolar chamadas a subprocess quando testar `analyzer` em cenarios de falha.
-- Criar fixtures de arquivo para casos de smells (long method, large class etc.).
+1. testar listagem da tool em `list_tools`
+2. testar chamada com argumentos validos
+3. testar erro de argumento invalido
+4. testar serializacao da resposta
 
-## Criterios Minimos para Merge
+## Criterios minimos para merge
 
-- testes relevantes para comportamento novo
-- sem regressao em CI (`make ci`)
-- docs de usuario/integracao/desenvolvedor atualizadas
+- testes relevantes para o comportamento novo
+- sem regressao em `make ci`
+- docs atualizadas quando a superficie publica mudar
+- compatibilidade preservada nas fachadas publicas
+

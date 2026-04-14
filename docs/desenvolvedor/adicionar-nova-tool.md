@@ -1,43 +1,51 @@
-# Como Adicionar Nova Tool/Capability
+# Como Adicionar Nova Tool ou Capability
 
 ## Objetivo
 
-Guia seguro para extender o servidor MCP sem quebrar compatibilidade.
+Guia para estender o servidor MCP sem quebrar compatibilidade publica.
 
-## Passo a Passo
+## Fluxo recomendado
 
-1. Implementar funcao em `mcp_server/tools.py`.
-2. Definir assinatura clara (tipos primitivos + defaults).
-3. Registrar schema em `list_tools` em `mcp_server/server.py`.
-4. Adicionar entrada no dispatcher de `call_tool`.
-5. (Fallback) garantir que nome tambem exista no dispatcher JSON-RPC.
-6. Criar testes unitarios/integracao para comportamento novo.
-7. Atualizar docs em `docs/usuario/ferramentas.md` e `docs/integracao/contratos.md`.
+1. Defina a responsabilidade da nova tool:
+   analise/legacy ou heuristicas.
+2. Implemente a funcao no modulo de dominio apropriado:
+   `mcp_server/tools_analysis.py` ou `mcp_server/tools_heuristics.py`.
+3. Reexporte a funcao em `mcp_server/tools.py` se ela fizer parte da
+   superficie publica MCP.
+4. Registre schema, descricao e nome da tool em `mcp_server/server.py`.
+5. Garanta que o fallback JSON-RPC continue enxergando a tool via o mesmo
+   caminho publico.
+6. Adicione testes cobrindo listagem, chamada valida, erro e serializacao.
+7. Atualize docs de usuario, integracao e desenvolvedor.
 
-## Checklist de Contrato
+## Checklist de contrato
 
 - nome consistente: `context_refactor.<novo_nome>`
 - `project_path` quando aplicavel
 - retorno JSON serializavel
 - tratamento de erros compreensivel
-- performance aceitavel para uso em host MCP
+- parametros alinhados com CLI, se houver comando correspondente
 
-## Exemplo Minimo
+## Boas praticas
 
-```python
-def my_new_tool(project_path: str, top_n: int = 10) -> dict[str, object]:
-    return {"project_path": project_path, "top_n": top_n, "status": "ok"}
-```
+- reutilize `tool_support_analysis.py`, `tool_support_heuristics.py` e
+  `tool_support_legacy.py`
+- preserve campos existentes de retorno
+- adicione novos campos de forma aditiva
+- imponha limites como `top_n` quando houver listas grandes
+- evite colocar logica nova na fachada `mcp_server/tools.py`
 
-## Boas Praticas
+## Compatibilidade
 
-- reutilize helpers de escopo (`_analysis_kwargs`) em tools existentes.
-- mantenha compatibilidade de campos de retorno.
-- adicione limites (`top_n`) para payload grande.
-- evite depender de APIs privadas de outros modulos sem justificativa.
+- nao renomeie tools existentes sem estrategia de deprecacao
+- nao remova campos publicos usados por clientes
+- mantenha `mcp_server/tools.py` como fachada pequena e estavel
+- documente breaking changes antes de implementa-las
 
-## Compatibilidade com Integracoes Existentes
+## Validacao minima
 
-- nao renomeie tools existentes sem deprecacao.
-- nao remova campos de retorno usados por clientes.
-- documente mudancas breaking no changelog e docs.
+1. A tool aparece em `list_tools`.
+2. A chamada com argumentos validos funciona.
+3. Entradas invalidas falham de forma compreensivel.
+4. A resposta e serializavel no modo SDK e no fallback.
+

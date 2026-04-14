@@ -1,5 +1,11 @@
 # Plano: Evolucao do Token Report com Peso de Dependencias
 
+> Documento historico.
+>
+> Este arquivo registra o plano e a linha de raciocinio da evolucao
+> `new-token-report`. O estado canonico atual do projeto esta em `README.md` e
+> na arvore `docs/`.
+
 ## Resumo Executivo
 
 Este documento define um plano completo, detalhado e faseado para evoluir o

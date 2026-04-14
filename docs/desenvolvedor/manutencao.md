@@ -1,45 +1,56 @@
 # Manutencao e Evolucao
 
-## Areas Sensiveis
+## Areas sensiveis
 
-- Integracao com `token_report.py` (contrato de saida e disponibilidade).
-- Registro/dispatch de tools MCP (`server.py`).
-- Serializacao dos modelos usados por CLI e MCP.
+- integracao com `token_report.py`
+- catalogo e dispatcher de tools em `mcp_server/server.py`
+- serializacao dos modelos usados por CLI e MCP
+- coerencia entre fachadas publicas e modulos especializados
 
-## Pontos de Acoplamento
+## Estrategia de compatibilidade
 
-- tools dependem diretamente de funcoes core (`analyzer`, `planner`, heuristics).
-- thresholds e criterios podem existir em mais de um ponto logico.
-- comportamento de fallback precisa manter paridade funcional.
+O projeto usa fachadas pequenas para preservar imports e contratos:
 
-## Riscos Conhecidos
+- `cli.main`
+- `mcp_server.tools`
+- `mcp_server.tool_support`
+- `context_refactor.analyzer`
+- `context_refactor.models`
+- `context_refactor.dependency_analyzer`
+- `context_refactor.refactor_heuristics`
 
-- divergencia entre documentacao historica e tools realmente expostas.
-- ausencia de auth/rate-limit pode exigir controles no host.
-- resposta grande pode impactar clientes sem paginacao.
+Ao evoluir o sistema:
 
-## Debito Tecnico (Observavel)
+- mantenha a fachada publica estavel
+- mova a complexidade para modulos especializados
+- evite expor helpers internos como contrato externo
 
-- falta de camada formal de validacao de schema no servidor.
-- falta de recursos MCP avancados (resources/prompts/templates/streams/events/auth).
-- necessidade de padronizar codigos/formatos de erro para consumidores.
+## Pontos de acoplamento
 
-## Boas Praticas para Alteracoes Futuras
+- output do `token_report.py`
+- forma como escopo e dependencia sao resolvidos no analyzer
+- paridade de parametros entre CLI e MCP
+- serializacao aditiva dos payloads publicos
 
-1. Altere contratos de forma retrocompativel sempre que possivel.
-2. Se houver breaking change, documente deprecacao e migracao.
-3. Atualize teste + docs na mesma PR.
-4. Mantenha exemplos de integracao sincronizados com o codigo.
+## Riscos conhecidos
 
-## Como Manter Compatibilidade
+- divergencia entre documentacao historica e documentacao canonica
+- respostas grandes para clientes sem paginacao
+- falta de auth e rate limit no servidor MCP
+- drift entre fallback JSON-RPC e modo SDK se novos campos nao forem testados
 
-- preserve nomes de tools publicas.
-- preserve campos de retorno existentes.
-- adicione novos campos de forma aditiva.
-- evite mudar defaults sem justificativa/documentacao.
+## Boas praticas para alteracoes futuras
 
-## Roadmap Tecnico Sugerido
+1. altere contratos de forma retrocompativel sempre que possivel
+2. se houver breaking change, documente deprecacao e migracao
+3. atualize teste e docs na mesma PR
+4. mantenha CLI e MCP sincronizados
+5. prefira adicionar a nova logica no modulo de dominio, nao na fachada
 
-- adicionar observabilidade estruturada.
-- introduzir validacao de entrada/saida por schema.
-- avaliar suporte gradual a capabilities MCP adicionais.
+## Roadmap tecnico sugerido
+
+- validacao formal de schema
+- observabilidade estruturada
+- capabilities MCP adicionais
+- melhor padronizacao de erros para consumidores
+

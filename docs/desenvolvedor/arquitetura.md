@@ -1,43 +1,80 @@
 # Arquitetura
 
-## Visao Geral
+## Visao geral
 
-A arquitetura e dividida em tres blocos:
+A arquitetura e organizada em tres blocos:
 
-- `cli/`: interface de linha de comando
+- `cli/`: interface humana em linha de comando
 - `mcp_server/`: adaptador de protocolo MCP
-- `context_refactor/`: dominio e logica de analise/refatoracao
+- `context_refactor/`: dominio de analise, heuristicas e planejamento
 
-Architecture is split into CLI, MCP adapter, and core domain logic.
+`token_report.py` continua sendo a fonte de verdade para contagem bruta de
+tokens.
+
+## Principio estrutural atual
+
+O projeto usa fachadas publicas estaveis e implementacao interna modular por
+dominio.
+
+Fachadas publicas relevantes:
+
+- `cli.main`
+- `mcp_server.tools`
+- `mcp_server.tool_support`
+- `context_refactor.analyzer`
+- `context_refactor.models`
+- `context_refactor.dependency_analyzer`
+- `context_refactor.refactor_heuristics`
+
+Implementacoes especializadas vivem em modulos por responsabilidade, como
+`analyzer_*`, `dependency_*`, `model_*`, `tools_*` e `tool_support_*`.
 
 ## Camadas
 
-1. Interface: comandos CLI e endpoints MCP.
-2. Aplicacao: funcoes em `mcp_server/tools.py` que orquestram chamadas.
-3. Dominio: modelos, analisadores, regras heuristicas e planner.
-4. Integracao externa: `token_report.py` (subprocess).
+1. Interface
+   CLI Typer e servidor MCP.
+2. Aplicacao
+   Wrappers que adaptam argumentos externos para o dominio.
+3. Dominio
+   Analise de tokens, dependencias, heuristicas, planner e modelos.
+4. Integracao externa
+   `token_report.py` via subprocess.
 
-## Decisoes Arquiteturais Relevantes
+## Fluxo arquitetural resumido
 
-- `token_report.py` e a fonte de verdade da contagem de tokens.
-- Modelos tipados centralizados em `context_refactor/models.py`.
-- Regras plugaveis por classe via `RefactorRule`.
-- Fallback JSON-RPC para ambientes sem SDK MCP.
+### CLI
 
-## Pontos Criticos
+`cli.main` -> `cli.app` -> `cli.commands.*` -> `mcp_server.tools.*` ->
+`context_refactor.*`
 
-- Acoplamento com o formato de saida de `token_report.py`.
-- Dependencia de funcoes de analise estrutural para varias regras.
-- Sem auth/rate limit/streaming no servidor MCP.
+### MCP
 
-## Oportunidades de Evolucao
+`mcp_server.server` -> catalogo/schema -> `mcp_server.tools.*` ->
+`context_refactor.*`
 
-- Versionamento formal de contrato de resposta.
-- Camada de validacao de schema de entrada/saida no servidor.
-- Observabilidade (logs estruturados e metricas).
+## Decisoes arquiteturais relevantes
 
-## Relacao com Outros Docs
+- preservar contratos publicos mesmo durante refactors internos
+- manter `token_report.py` simples e isolado
+- separar pipeline legacy e pipeline heuristica no MCP
+- concentrar compatibilidade em fachadas pequenas e modulos especializados
+
+## Pontos criticos
+
+- contrato de saida do `token_report.py`
+- coerencia entre CLI e MCP para filtros e parametros de dependencia
+- estabilidade de serializacao dos modelos usados em JSON
+- paridade entre modo SDK e fallback JSON-RPC
+
+## Oportunidades de evolucao
+
+- validacao formal de schema de entrada e saida
+- observabilidade e logs estruturados
+- capabilities MCP adicionais
+
+## Referencias
 
 - [Modulos](./modulos.md)
 - [Fluxos Internos](./fluxos.md)
 - [Manutencao e Evolucao](./manutencao.md)
+

@@ -1,16 +1,21 @@
 # Contratos e Comunicacao MCP
 
-## Contratos Principais
+## Contratos principais
 
-### list_tools
+### `list_tools`
 
-Retorna metadados das tools registradas (nome, descricao, schema de entrada).
+Retorna metadados das tools registradas:
 
-### call_tool
+- nome
+- descricao
+- schema de entrada
 
-Recebe `name` e `arguments`, despacha para a funcao correspondente e retorna JSON serializado.
+### `call_tool`
 
-## Tools Registradas
+Recebe `name` e `arguments`, despacha para a funcao correspondente e retorna
+payload JSON serializavel.
+
+## Tools registradas
 
 - `context_refactor.analyze_project`
 - `context_refactor.context_budget`
@@ -19,38 +24,84 @@ Recebe `name` e `arguments`, despacha para a funcao correspondente e retorna JSO
 - `context_refactor.detect_code_smells`
 - `context_refactor.generate_refactor_suggestions`
 
-## Campos de Entrada Relevantes
+## Campos de entrada mais relevantes
 
-- `project_path` (required em todas as tools)
-- `llm_context_size`, `safety_margin`, `top_n` (quando aplicavel)
-- `estimator`: `bytes|chars|whitespace|heuristic`
-- `analysis_profile`: `default|full|source-only|docs`
-- filtros de escopo: `exclude_*`, `include_categories`, `exclude_categories`
+Comuns:
 
-## Regras de Validacao
+- `project_path`
+- `estimator`
+- `analysis_profile`
+- `config_path`
+- `exclude_dirs`
+- `exclude_globs`
+- `exclude_files`
+- `include_categories`
+- `exclude_categories`
 
-- validacao de categorias ocorre no core (`analyzer`).
-- valores invalidos podem gerar erro de execucao.
-- tool desconhecida retorna erro/unknown tool.
+Dependendo da tool:
 
-## Estruturas de Resposta (Alto Nivel)
+- `llm_context_size`
+- `safety_margin`
+- `top_n`
 
-- `analysis_scope`, `noise_summary`, `signal_score`
-- resumo de budget (`fits_context`, `overflow_tokens`)
-- listas de recomendacao/plano dependendo da tool
+Opcionalmente, para enriquecimento por dependencia:
 
-## Timeouts, Retries e Fallback
+- `dependency_mode`
+- `dependency_max_depth`
+- `dependency_max_multiplier`
+- `dependency_base_weight`
+- `dependency_depth_decay`
+- `dependency_depth_weights`
 
-- Nao ha politica de retry nativa no servidor.
-- Timeouts dependem do host/cliente integrador.
-- Fallback JSON-RPC entra automaticamente sem SDK MCP.
+## Estruturas de resposta publicas
 
-## Tratamento de Erros
+Campos compartilhados:
 
-- Modo SDK: retorno textual com `Error: ...` em excecoes.
-- Modo fallback: erro JSON-RPC com codigo e mensagem.
+- `report_schema_version`
+- `compatibility_mode`
+- `analysis_scope`
+- `noise_summary`
+- `signal_score`
+- `category_counts`
+- `category_tokens`
+- `dependency_analysis`
 
-## Capabilities MCP Nao Implementadas
+Campos por familia:
+
+- analise completa: `project_summary`, `context_budget`, `largest_files`,
+  `largest_directories`, `refactor_recommendations`, `refactor_plan`
+- budget: `llm_context_size`, `safety_margin`, `context_budget`,
+  `total_tokens`, `total_files`, `fits_context`, `overflow_tokens`,
+  `overflow_ratio`
+- candidatos legacy: `total_files_scanned`, `candidates_found`,
+  `recommendations`
+- heuristicas: `files_with_smells`, `results` ou `heuristic_results`
+
+Ferramentas que incluem hotspots podem retornar:
+
+- `dependency_hotspots`
+
+## Regras de validacao
+
+- validacao de categorias e perfis acontece no core
+- nomes de tool fora do catalogo retornam erro de lookup
+- valores invalidos podem gerar erro de execucao
+
+## Tratamento de erros
+
+- modo SDK: erro textual serializado para o cliente
+- modo fallback: erro JSON-RPC com codigo e mensagem
+
+O host deve tratar falhas de subprocess, argumentos invalidos e path
+inexistente como erros recuperaveis de chamada.
+
+## Timeouts, retries e fallback
+
+- nao ha politica de retry nativa no servidor
+- timeouts de transporte dependem do host
+- fallback JSON-RPC entra automaticamente sem o SDK MCP
+
+## Capabilities MCP nao implementadas
 
 - resources
 - prompts
@@ -60,13 +111,16 @@ Recebe `name` e `arguments`, despacha para a funcao correspondente e retorna JSO
 - context providers
 - auth flows
 
-Documente essa lacuna no host para evitar expectativas incorretas.
-
-## Exemplo Resumido de Chamada
+## Exemplo resumido de chamada
 
 ```json
 {
   "name": "context_refactor.detect_refactor_candidates",
-  "arguments": {"project_path": "/repo", "top_n": 20}
+  "arguments": {
+    "project_path": "/repo",
+    "top_n": 20,
+    "analysis_profile": "source-only"
+  }
 }
 ```
+

@@ -1,26 +1,30 @@
-# ContextRefactor Tuning Guide
+# Guia de Tuning do ContextRefactor
 
-Este guia descreve como reduzir ruído nas análises para aumentar o valor das recomendações.
+Este guia descreve como reduzir ruido nas analises para aumentar o valor das
+recomendacoes.
 
 ## Objetivo
 
-Evitar que artefatos gerados (coverage, reports, outputs temporários, snapshots) dominem os resultados, mantendo foco em código acionável.
+Evitar que artefatos gerados, cobertura, relatorios e saidas temporarias
+dominem os resultados, mantendo o foco em codigo e documentacao acionaveis.
 
-## Perfis de análise
+## Perfis de analise
 
 | Perfil | Uso recomendado |
 |---|---|
-| default | Fluxo diário com redução de ruído e visão ampla de código + markdown |
-| full | Auditoria completa sem exclusões padrão |
-| source-only | Refatoração de código de produção |
-| docs | Limpeza e modularização de documentação |
+| `default` | Fluxo diario com reducao de ruido e visao ampla de codigo + markdown |
+| `full` | Auditoria completa sem exclusoes padrao |
+| `source-only` | Refatoracao de codigo de producao |
+| `docs` | Limpeza e modularizacao de documentacao |
 
-## Arquivo de configuração por repositório
+## Arquivo de configuracao por repositorio
 
-Por padrão, o ContextRefactor procura um arquivo chamado .context-refactor.json na raiz do projeto.
+Por padrao, o ContextRefactor procura `.context-refactor.json` na raiz do
+projeto.
 
 Exemplo:
 
+```json
 {
   "analysis": {
     "analysis_profile": "default",
@@ -31,111 +35,134 @@ Exemplo:
     "exclude_categories": ["other"]
   }
 }
+```
 
-## Precedência
+## Precedencia
 
 1. Defaults do perfil
-2. Configuração do repositório
-3. Parâmetros explícitos do CLI/MCP
+2. Configuracao do repositorio
+3. Parametros explicitos de CLI ou MCP
 
-Ou seja, parâmetros passados no comando sempre têm prioridade final.
+Ou seja, o comando sempre tem a palavra final.
 
 ## Campos aceitos
 
-- analysis_profile
-- exclude_dirs
-- exclude_globs
-- exclude_files
-- include_categories
-- exclude_categories
+- `analysis_profile`
+- `exclude_dirs`
+- `exclude_globs`
+- `exclude_files`
+- `include_categories`
+- `exclude_categories`
 
-Categorias válidas:
+Categorias validas:
 
-- source_code
-- markdown
-- configuration
-- binary
-- other
+- `source_code`
+- `markdown`
+- `configuration`
+- `binary`
+- `other`
 
-## Estratégias recomendadas por tipo de execução
+## Modos de dependencia
 
-### Refatoração de backend/frontend
+Use os modos de dependencia apenas quando quiser que a analise reflita custo
+estrutural alem do volume bruto.
 
-- Perfil: source-only
-- Include categories: source_code
-- Excluir docs/planning e outputs de cobertura
+| Modo | Efeito |
+|---|---|
+| `off` | Mantem somente tokens brutos |
+| `report_only` | Calcula metadados sem alterar a ordenacao legacy |
+| `blended` | Mistura volume bruto com acoplamento |
+| `weighted` | Priorizacao mais agressiva por tamanho efetivo |
 
-### Planejamento de documentação
+Parametros adicionais:
 
-- Perfil: docs
-- Include categories: markdown
-- Excluir coverage, reports e outputs gerados
+- `dependency_max_depth`
+- `dependency_max_multiplier`
+- `dependency_base_weight`
+- `dependency_depth_decay`
+- `dependency_depth_weights`
 
-### Auditoria de footprint global
+## Estrategias recomendadas
 
-- Perfil: full
-- Sem include/exclude de categoria
-- Usar apenas exclusões estritamente temporárias
+### Refatoracao de codigo
 
-## Interpretação dos novos metadados
+- perfil: `source-only`
+- incluir: `source_code`
+- excluir: `coverage`, `reports`, snapshots e artefatos locais
+- dependencia: `report_only` para observacao, `blended` para priorizacao
 
-As respostas agora incluem:
+### Documentacao
 
-- analysis_scope: configuração final efetivamente aplicada
-- category_counts: total de arquivos por categoria após filtros
-- category_tokens: total de tokens por categoria após filtros
+- perfil: `docs`
+- incluir: `markdown`
+- excluir: `reports`, `token-report` e gerados temporarios
 
-Esses três blocos permitem validar rapidamente se o escopo está correto antes de agir sobre recomendações.
+### Auditoria global
 
-## Checklist de qualidade da análise
+- perfil: `full`
+- aplicar apenas exclusoes claramente temporarias
+- usar `report_only` primeiro para inspecionar `dependency_analysis`
 
-- Top 20 não deve ser dominado por coverage/lcov-report
-- category_counts deve refletir o objetivo da execução
-- Smells prioritários devem aparecer em source_code para execução de refatoração
-- Se os resultados parecerem ruidosos, ajustar primeiro exclude_globs e include_categories
+## Como interpretar a resposta
 
-## Comandos úteis
+As respostas publicas incluem campos que ajudam a validar o escopo antes de
+agir:
 
-Executar análise source-only:
+- `analysis_scope`: configuracao final efetivamente aplicada
+- `noise_summary`: resumo do que foi filtrado
+- `signal_score`: leitura agregada de sinal vs ruido
+- `category_counts`: arquivos por categoria apos filtros
+- `category_tokens`: tokens por categoria apos filtros
+- `dependency_analysis`: metadados do modo de dependencia
 
-context-refactor analyze /path/to/project --profile source-only
+Ferramentas que pedem hotspots tambem podem retornar:
 
-Executar análise com config explícita:
+- `dependency_hotspots`
 
-context-refactor analyze /path/to/project --config /path/to/.context-refactor.json
+## Checklist de qualidade da analise
 
-Executar orçamento de contexto focado em código:
+- o top de arquivos nao deve ser dominado por coverage ou relatorios
+- `analysis_scope` precisa refletir a intencao do comando
+- `category_counts` deve bater com o objetivo da execucao
+- se houver dependencia habilitada, `dependency_analysis` precisa fazer sentido
+- se o resultado parecer ruidoso, ajuste primeiro filtros e perfil
 
-context-refactor budget /path/to/project --profile source-only
+## Comandos uteis
 
----
-
-## Autonomia e Integração Independente
-
-### Contrato de Execução
-
-O ContextRefactor é um produto autônomo que:
-
-1. **Não depende de projetos externos** — Todas as dependências estão em `pyproject.toml`
-2. **Executa em qualquer diretório** — token_report.py é localizado dinamicamente
-3. **Suporta fallback graceful** — MCP funciona via JSON-RPC se SDK não está instalado
-4. **Valida configuração explicitamente** — .context-refactor.json inválido resulta em erro claro
-
-### Troubleshooting
-
-#### "FileNotFoundError: token_report.py not found"
-
-**Solução:**
+Analise focada em codigo:
 
 ```bash
-pip install --force-reinstall -e .[dev,mcp]
+context-refactor analyze /path/to/project --profile source-only
 ```
 
-#### "Unknown category" ValueError
+Budget focado em codigo com dependencia em modo observacao:
 
-**Solução:** Verificar que `include_categories` e `exclude_categories` usam apenas:
-- `source_code`, `markdown`, `configuration`, `binary`, `other`
+```bash
+context-refactor budget /path/to/project --profile source-only --dependency-mode report_only
+```
 
-#### Análise muito lenta (timeout)
+Analise com config explicita:
 
-**Solução:** Usar perfil `source-only` ou aumentar exclusões na configuração
+```bash
+context-refactor analyze /path/to/project --config /path/to/.context-refactor.json
+```
+
+## Troubleshooting rapido
+
+Erro `token_report.py not found`:
+
+```bash
+pip install --force-reinstall -e ".[dev,mcp]"
+```
+
+Erro de categoria invalida:
+
+- revise `include_categories` e `exclude_categories`
+- use apenas `source_code`, `markdown`, `configuration`, `binary`, `other`
+
+Analise muito lenta:
+
+- reduza o escopo com `source-only` ou `docs`
+- aumente exclusoes no arquivo `.context-refactor.json`
+- use `report_only` antes de `blended` ou `weighted`
+

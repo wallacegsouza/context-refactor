@@ -3,7 +3,7 @@
 ## Pre-requisitos
 
 - Python 3.11+
-- pip atualizado
+- `pip` atualizado
 - ambiente virtual recomendado
 
 ## Instalacao
@@ -15,24 +15,29 @@ pip install --upgrade pip
 pip install -e ".[dev,mcp]"
 ```
 
-## Execucao Local
+## Execucao local
 
 ### CLI
 
 ```bash
 context-refactor --help
 context-refactor analyze /path/to/repo
+context-refactor budget /path/to/repo --profile source-only
 ```
 
 ### Servidor MCP
 
 ```bash
 python3 -m mcp_server.server
-# ou
+```
+
+Ou:
+
+```bash
 context-refactor serve
 ```
 
-## Configuracao
+## Configuracao local
 
 Arquivo opcional por repositorio: `.context-refactor.json`.
 
@@ -49,17 +54,20 @@ Exemplo:
 }
 ```
 
-## Variaveis de Ambiente
+## Extras e empacotamento
 
-- `PYTHONUNBUFFERED=1` recomendado em hosts MCP via stdio.
+- script CLI: `context-refactor = cli.main:main`
+- extras: `dev`, `mcp`
+- build backend: `setuptools`
 
-## Segredos
+## Variaveis de ambiente uteis
 
-Nao ha segredos obrigatorios no projeto atual (sem auth flows internos).
+- `PYTHONUNBUFFERED=1` em hosts MCP por stdio
 
-## Comandos Uteis
+## Comandos uteis
 
 ```bash
+make install
 make install-dev
 make test
 make test-cov
@@ -69,9 +77,10 @@ make type-check
 make ci
 ```
 
-## Build e Distribuicao
+## Observacoes de desenvolvimento
 
-Projeto empacotado via setuptools (`pyproject.toml`).
+- `cli.main` e apenas o entrypoint publico
+- a implementacao da CLI fica em `cli/app.py`, `cli/commands/*` e helpers
+- a superficie MCP publica fica em `mcp_server/tools.py`
+- a logica do core deve evoluir em modulos especializados, nao nas fachadas
 
-- script CLI: `context-refactor = cli.main:main`
-- extras: `dev`, `mcp`

@@ -1,53 +1,73 @@
 # Fluxos Internos e Contratos
 
-## Fluxo de Inicializacao do MCP
+## Inicializacao do MCP
 
 1. `run_server()` escolhe modo SDK ou fallback.
-2. SDK: cria servidor, registra `list_tools` e `call_tool`.
-3. Fallback: loop JSON-RPC em stdin/stdout.
+2. No modo SDK, o servidor registra `list_tools` e `call_tool`.
+3. No fallback, o processo entra em loop JSON-RPC em stdin/stdout.
 
-## Fluxo de Registro de Tools
+## Registro das tools
 
-No boot, `list_tools` retorna o catalogo de 6 tools com schema de entrada.
+`mcp_server/server.py` publica o catalogo das 6 tools com:
 
-## Fluxo de Recebimento e Execucao de Chamada
+- nome
+- descricao
+- schema de entrada
 
-1. Cliente chama tool por nome.
-2. Dispatcher resolve funcao em `mcp_server/tools.py`.
-3. Tool chama `analyze_tokens` e/ou motores de recomendacao.
-4. Resultado vira JSON para resposta ao cliente.
-
-## Fluxo de Validacao
-
-- Validacoes principais estao no core (`analyzer.py`), especialmente categorias/perfis.
-- Sem camada dedicada de schema validation no servidor MCP atual.
-
-## Fluxo de Resposta
-
-- Modo SDK: `TextContent` com JSON serializado.
-- Fallback: objeto JSON-RPC `result` ou `error`.
-
-## Tratamento de Erros
-
-- Tool desconhecida retorna erro de lookup.
-- Excecoes internas retornam mensagem de erro.
-- Falhas de subprocess/arquivo podem interromper analise.
-
-## Timeouts, Retries e Fallback
-
-- Timeout/retry: responsabilidade do host/cliente.
-- Fallback: automatico quando SDK MCP nao instalado.
-
-## Exemplo Resumido de Fluxo
+## Fluxo de chamada MCP
 
 ```text
-Host MCP -> call_tool(name, arguments)
-          -> mcp_server.tools.fn(...)
-          -> context_refactor.*
-          -> JSON response
+Host MCP
+  -> call_tool(name, arguments)
+  -> mcp_server.tools.<tool publica>
+  -> mcp_server.tools_analysis ou tools_heuristics
+  -> tool_support_* e context_refactor.*
+  -> JSON serializavel de resposta
 ```
+
+## Fluxo de chamada CLI
+
+```text
+context-refactor
+  -> cli.main
+  -> cli.app
+  -> cli.commands.*
+  -> mcp_server.tools.<tool publica>
+  -> context_refactor.*
+  -> rendering/JSON
+```
+
+## Fluxo de analise
+
+1. A interface publica resolve parametros e filtros.
+2. `context_refactor.analyzer` resolve escopo e opcoes de dependencia.
+3. `analyzer_runner.py` executa `token_report.py`.
+4. `analyzer_metrics.py` classifica, filtra, agrega e enriquece os resultados.
+5. O MCP ou a CLI consomem esses dados para budget, candidatos ou heuristicas.
+
+## Fluxo de heuristicas
+
+1. As tools de heuristica usam a mesma base de `analyze_tokens`.
+2. `tool_support_heuristics.py` cria o `HeuristicsEngine`.
+3. O engine executa regras plugaveis sobre os arquivos analisados.
+4. O resultado vira `results` ou `heuristic_results`, com plano quando
+   aplicavel.
+
+## Fluxo legacy
+
+1. A tool chama a pipeline de analise.
+2. `refactor_engine.py` produz recomendacoes legacy.
+3. `refactor_planner.py` transforma recomendacoes em passos ordenados.
+
+## Validacao e erros
+
+- validacoes de categoria e perfil ficam no core
+- erros do `token_report.py` sobem como falha de execucao
+- tool desconhecida falha no lookup do servidor
+- fallback e modo SDK retornam formatos de erro diferentes
 
 ## Referencias
 
-- [Contratos MCP](../integracao/contratos.md)
 - [Arquitetura](./arquitetura.md)
+- [Contratos MCP](../integracao/contratos.md)
+

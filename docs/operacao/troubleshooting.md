@@ -1,88 +1,111 @@
 # Operacao e Troubleshooting
 
-## Visao Operacional
+## Visao operacional
 
-Este MCP roda por stdio, normalmente sob controle de um host/cliente MCP.
+O ContextRefactor roda como processo stdio, normalmente sob controle de um
+host MCP ou pela propria CLI.
 
-Operationally, this server is a stdio process managed by a host/client.
+## Modos de execucao
 
-## Logs e Sinais
+- CLI: `context-refactor ...`
+- MCP nativo: `python3 -m mcp_server.server`
+- fallback: JSON-RPC em stdin/stdout sem o SDK `mcp`
 
-- Em fallback sem SDK MCP, mensagem de aviso e emitida em stderr.
-- Erros de tool podem retornar texto/JSON-RPC error dependendo do modo.
+## Problemas comuns
 
-## Problemas Comuns
-
-### 1. Tool nao aparece no host
+### 1. A tool nao aparece no host
 
 Causas provaveis:
-- caminho/command incorreto no registro do host
-- ambiente sem pacote instalado
-- processo nao iniciou
+
+- comando ou `cwd` incorreto no registro do host
+- pacote nao instalado no ambiente do host
+- processo nao iniciou corretamente
 
 Diagnostico:
-1. Executar `python3 -m mcp_server.server` manualmente.
-2. Confirmar imports do pacote no mesmo ambiente.
-3. Validar configuracao do host.
+
+1. Execute `python3 -m mcp_server.server` manualmente.
+2. Confirme que o ambiente consegue importar o pacote.
+3. Verifique se `list_tools` retorna 6 tools `context_refactor.*`.
 
 ### 2. `Unknown tool`
 
 Causas provaveis:
+
 - nome incorreto
-- host usando cache antigo
-- versao diferente do server
+- cache antigo no host
+- servidor diferente do esperado
 
 Acao:
-- usar nomes `context_refactor.*` exatos.
-- reiniciar host para recarregar catalogo.
 
-### 3. Erro de path/projeto
+- use nomes `context_refactor.*` exatos
+- reinicie o host
+- valide o catalogo retornado por `list_tools`
+
+### 3. Erro de `project_path`
 
 Sintoma:
-- falha ao analisar diretoria
+
+- falha ao analisar o diretorio
 
 Acao:
-- confirmar `project_path` absoluto e existente.
-- conferir permissao de leitura.
 
-### 4. Erro de categoria/perfil
+- confirme que o path existe
+- prefira path absoluto
+- confira permissao de leitura
 
-Sintoma:
-- erro de validacao ao passar filtros
+### 4. Erro de categoria, perfil ou dependencia
 
 Acao:
-- usar categorias validas: `source_code`, `markdown`, `configuration`, `binary`, `other`.
-- usar perfis validos: `default`, `full`, `source-only`, `docs`.
+
+- categorias validas:
+  `source_code`, `markdown`, `configuration`, `binary`, `other`
+- perfis validos:
+  `default`, `full`, `source-only`, `docs`
+- modos de dependencia validos:
+  `off`, `report_only`, `blended`, `weighted`
 
 ### 5. Falha no `token_report.py`
 
 Causas provaveis:
-- script ausente/indisponivel
+
+- script ausente ou indisponivel
 - erro no subprocess
 - ambiente Python inconsistente
 
 Acao:
-- verificar existencia do arquivo `token_report.py`.
-- validar execucao local do script.
-- revisar ambiente virtual e dependencias.
 
-## Troubleshooting de Integracao MCP
+- verifique a existencia de `token_report.py`
+- valide a execucao local do script
+- revise o ambiente virtual e dependencias
 
-Checklist rapido:
+### 6. Host sem SDK MCP
 
-1. Processo sobe sem erro?
+Sintoma:
+
+- mensagem de fallback em stderr
+
+Leitura:
+
+- isso e esperado quando o pacote `mcp` nao esta instalado
+- o servidor continua funcional em fallback JSON-RPC
+
+## Checklist rapido
+
+1. O processo sobe sem erro?
 2. `list_tools` retorna 6 tools?
-3. `context_budget` responde com JSON?
-4. Host esta no ambiente Python correto?
+3. `context_refactor.context_budget` responde com JSON?
+4. O host esta no ambiente Python correto?
+5. O mesmo problema ocorre pela CLI?
 
-## Monitoramento e Limites
+## Monitoramento e limites
 
-- Nao ha monitoramento embutido no servidor atual.
-- Nao ha retries/timeouts internos; configure no host.
-- Respostas podem ser grandes; prefira filtros e `top_n`.
+- nao ha monitoramento embutido
+- retries e timeouts de transporte ficam a cargo do host
+- respostas grandes devem ser limitadas com `top_n`, perfil e filtros
 
-## Escalacao de Diagnostico
+## Escalacao de diagnostico
 
-- Reproduzir via CLI (`context-refactor ...`) para isolar problema de host.
-- Reproduzir via chamada MCP minima (`context_budget`).
-- Se persistir, coletar payload de entrada e erro retornado para analise.
+- reproduza pela CLI para isolar o problema do host
+- reproduza por uma chamada minima de MCP
+- colete o payload de entrada e a mensagem de erro retornada
+

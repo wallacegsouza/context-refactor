@@ -1,49 +1,94 @@
 # Exemplos de Uso
 
-Exemplos resumidos de interacao via CLI e via MCP.
+Exemplos resumidos de uso via CLI e via MCP.
 
-Short practical examples for CLI and MCP integration.
-
-## Exemplo 1: Diagnostico Completo (CLI)
+## Exemplo 1: analise completa pela CLI
 
 ```bash
-context-refactor analyze /repo --context-size 128000 --safety-margin 0.8 --profile default
+context-refactor analyze /repo \
+  --context-size 128000 \
+  --safety-margin 0.8 \
+  --profile default \
+  --dependency-mode report_only
 ```
 
-### Leitura rapida do resultado
+Leitura rapida:
 
-- Veja `project_summary.total_tokens`.
-- Compare com `context_budget.context_budget`.
-- Se nao couber, siga `refactor_plan.steps`.
+- veja `project_summary.total_tokens`
+- compare com `context_budget.context_budget`
+- use `dependency_analysis` para validar o modo de dependencia
+- siga `refactor_plan.steps` se o projeto nao couber
 
-## Exemplo 2: Somente Budget (CLI)
+## Exemplo 2: budget em JSON
 
 ```bash
 context-refactor budget /repo --context-size 200000 --safety-margin 0.75 --json
 ```
 
-### Resultado esperado (resumo)
+Resposta resumida:
 
 ```json
 {
   "fits_context": true,
-  "overflow_tokens": 0
+  "overflow_tokens": 0,
+  "analysis_scope": {
+    "analysis_profile": "default"
+  }
 }
 ```
 
-## Exemplo 3: Smells por Heuristica (CLI)
+## Exemplo 3: candidatos legacy
 
 ```bash
-context-refactor smells /repo --context-size 128000 --top 20
+context-refactor candidates /repo --top 30 --profile source-only
 ```
 
-### Quando usar
+Quando usar:
 
-Quando voce quer problemas por arquivo (`problems`, `suggested_refactors`), nao apenas candidatos agregados.
+- quando voce quer uma lista priorizada de recomendacoes por arquivo
+- quando quer manter o fluxo legacy de candidatos
 
-## Exemplo 4: Chamada MCP (tools/call)
+## Exemplo 4: smells por heuristica
 
-Exemplo logico de payload (SDK/fallback abstraem detalhes no cliente):
+```bash
+context-refactor smells /repo --context-size 128000 --top 20 --dependency-mode blended
+```
+
+Quando usar:
+
+- quando voce quer `problems` e `suggested_refactors` por arquivo
+- quando quer ver impacto de dependencia no resultado por arquivo
+
+## Exemplo 5: plano por heuristicas
+
+```bash
+context-refactor suggest /repo --profile source-only --json
+```
+
+Resposta resumida:
+
+```json
+{
+  "context_budget": {
+    "fits_context": false
+  },
+  "heuristic_results": [
+    {
+      "file": "/repo/service.py",
+      "problems": ["Large Class"]
+    }
+  ],
+  "refactor_plan": {
+    "steps": [
+      {"step_number": 1, "title": "Extract Class"}
+    ]
+  }
+}
+```
+
+## Exemplo 6: chamada MCP
+
+Payload logico:
 
 ```json
 {
@@ -52,27 +97,31 @@ Exemplo logico de payload (SDK/fallback abstraem detalhes no cliente):
     "project_path": "/repo",
     "llm_context_size": 128000,
     "safety_margin": 0.8,
-    "analysis_profile": "default"
+    "analysis_profile": "default",
+    "dependency_mode": "report_only"
   }
 }
 ```
 
-## Exemplo 5: Filtros de Escopo
+## Exemplo 7: filtros de escopo
 
 ```bash
-context-refactor candidates /repo \
+context-refactor analyze /repo \
   --profile source-only \
   --exclude-dirs "coverage,reports" \
-  --exclude-globs "*.map,*.snap"
+  --exclude-globs "*.map,*.snap" \
+  --exclude-files "lint.result.txt"
 ```
 
 Use filtros para remover ruido e melhorar a qualidade da recomendacao.
 
-## Erros Comuns em Uso
+## Erros comuns
 
-- Path nao existe.
-- Categoria invalida em include/exclude.
-- Ambiente sem dependencias (`mcp`, `typer`, etc.).
-- Falha no subprocess de `token_report.py`.
+- path inexistente
+- categoria invalida em include/exclude
+- ambiente sem dependencias esperadas
+- falha no subprocess de `token_report.py`
 
-Consulte tambem [Ferramentas MCP](./ferramentas.md) e [Troubleshooting](../operacao/troubleshooting.md).
+Consulte tambem [Ferramentas MCP](./ferramentas.md) e
+[Troubleshooting](../operacao/troubleshooting.md).
+

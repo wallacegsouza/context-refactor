@@ -1,40 +1,35 @@
-# Visao Geral do MCP
+# Visao Geral do ContextRefactor
 
-## Nome e Proposito
+## Nome e proposito
 
-**ContextRefactor** e um servidor MCP para analise de footprint de tokens de um repositorio e geracao de recomendacoes/plano de refatoracao para caber em janelas de contexto de LLM.
+O ContextRefactor e um servidor MCP e uma CLI para analise de footprint de
+tokens, ruido e acoplamento estrutural em repositorios.
 
-ContextRefactor is an MCP server that analyzes repository token footprint and builds refactoring guidance to fit LLM context windows.
+O objetivo e transformar volume bruto de codigo em uma leitura mais util para
+refatoracao e cabimento em janelas de contexto de LLM.
 
-## Problema que Resolve
+## Problema que resolve
 
-Projetos reais frequentemente excedem a janela de contexto. O MCP ajuda a:
+Projetos reais frequentemente excedem a janela de contexto. O ContextRefactor
+ajuda a:
 
-- medir o tamanho util em tokens
-- identificar pontos de maior impacto para reducao
-- priorizar refatoracoes com estimativa de ganho
+- medir o tamanho bruto e o tamanho efetivo do escopo analisado
+- identificar hotspots por volume, categoria e dependencias
+- priorizar refators com melhor relacao entre impacto e custo
 
-## Casos de Uso Principais
+## Publico-alvo
 
-- Diagnosticar se um repo cabe em um contexto alvo.
-- Gerar plano incremental de reducao de tokens.
-- Integrar analise em hosts MCP para assistentes de engenharia.
+- desenvolvedores e tech leads que usam LLM no fluxo de engenharia
+- integradores que conectam servidores MCP a clientes/hosts
+- equipes que precisam de onboarding e manutencao previsivel
 
-## Publico-Alvo
+## Formas de uso
 
-- Desenvolvedores e tech leads que usam LLM no fluxo de desenvolvimento.
-- Integradores que conectam MCP servers a clientes/hosts.
-- Equipes que precisam de onboarding e manutencao previsivel.
+- CLI via `context-refactor`
+- servidor MCP via `python3 -m mcp_server.server`
+- fallback JSON-RPC quando o SDK `mcp` nao esta instalado
 
-## Contexto de Uso
-
-- Monorepos e repositorios com muito codigo/documentacao.
-- Times que precisam combinar automacao e revisao humana.
-- Ambientes locais ou CI com Python 3.11+.
-
-## Capacidades Oferecidas
-
-### Tools MCP Expostas
+## Tools MCP publicas
 
 1. `context_refactor.analyze_project`
 2. `context_refactor.context_budget`
@@ -43,37 +38,51 @@ Projetos reais frequentemente excedem a janela de contexto. O MCP ajuda a:
 5. `context_refactor.detect_code_smells`
 6. `context_refactor.generate_refactor_suggestions`
 
-### Capabilities Nao Expostas Atualmente
+## Capacidades principais
 
-- resources
-- prompts
-- templates
-- streams
-- eventos
-- context providers
-- auth flows
+- budget de contexto
+- classificacao por categoria de arquivo
+- filtros por perfil e configuracao local
+- priorizacao legacy por recomendacoes
+- Heuristics Engine com regras plugaveis
+- enriquecimento opcional por dependencias
 
-## Dependencias Externas Relevantes
+## Arquitetura atual em alto nivel
 
-- `token_report.py` (fonte de verdade para contagem de tokens)
-- `mcp` SDK (modo MCP nativo)
-- `typer` + `rich` (CLI)
+O desenho atual usa fachadas publicas estaveis sobre implementacoes modulares:
 
-## Limitacoes Conhecidas
+- `cli.main` e o entrypoint publico da CLI
+- `mcp_server.tools` e `mcp_server.tool_support` sao fachadas de compatibilidade
+- `context_refactor.analyzer`, `models`, `dependency_analyzer` e
+  `refactor_heuristics` sao fachadas publicas do core
 
-- Sem autenticacao e autorizacao nativas.
-- Sem streaming de resposta.
-- Sem contrato formal versionado para schema de saida alem dos objetos retornados.
-- Parte da documentacao historica pode citar 4 tools, mas o servidor atual expoe 6 tools.
+Isso permite evolucao interna sem quebrar consumidores externos ou imports
+internos existentes.
 
-## Evidencias e Inferencias
+## Dependencias externas relevantes
 
-### Evidencias no Codigo
+- `token_report.py` como fonte de verdade da contagem bruta
+- SDK `mcp` para o modo MCP nativo
+- `typer` e `rich` para a CLI
 
-- Registro de tools em `mcp_server/server.py`.
-- Implementacoes em `mcp_server/tools.py`.
-- Perfis de analise em `context_refactor/analyzer.py`.
+## Limitacoes conhecidas
 
-### Inferencias
+- sem auth ou autorizacao nativas
+- sem streaming de resposta
+- sem resources, prompts ou templates MCP
+- contrato de saida evolutivo, sem versionamento externo separado alem dos
+  campos de schema do proprio payload
 
-- O design atual privilegia simplicidade operacional sobre features MCP avancadas (resources/prompts/auth).
+## Evidencias no codigo
+
+- catalogo das tools em `mcp_server/server.py`
+- fachada publica MCP em `mcp_server/tools.py`
+- entrypoint da CLI em `cli/main.py`
+- pipeline de analise em `context_refactor/analyzer.py`
+
+## Referencias
+
+- [Ferramentas MCP](./usuario/ferramentas.md)
+- [Arquitetura](./desenvolvedor/arquitetura.md)
+- [Fluxos Internos](./desenvolvedor/fluxos.md)
+
