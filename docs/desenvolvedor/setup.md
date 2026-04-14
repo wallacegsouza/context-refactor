@@ -54,6 +54,22 @@ Exemplo:
 }
 ```
 
+## Skills locais para agentes
+
+O workspace inclui skills locais em `.claude/skills/` para acelerar o uso do projeto em clientes com suporte a customizacoes de agente.
+
+Skills disponiveis:
+
+- `.claude/skills/mcp_refactor_workflow/SKILL.md`: orienta um agente no fluxo completo de refatoracao via MCP, incluindo preflight com `context_budget`, escolha entre analise completa e heuristicas, geracao de plano e validacao de resultados.
+- `.claude/skills/mcp_refactor_tuning/SKILL.md`: orienta o ajuste fino de parametros como `analysis_profile`, `dependency_mode`, filtros, `llm_context_size`, `safety_margin` e `top_n`.
+
+Uso recomendado:
+
+- use a skill de workflow quando a duvida principal for qual tool MCP chamar e em que sequencia
+- use a skill de tuning quando o fluxo ja estiver definido, mas ainda houver ruido, custo alto ou cobertura insuficiente
+
+Essas skills nao alteram o runtime do servidor. Elas documentam e padronizam como um agente deve conduzir a analise sobre as tools publicas do projeto.
+
 ## Extras e empacotamento
 
 - script CLI: `context-refactor = cli.main:main`

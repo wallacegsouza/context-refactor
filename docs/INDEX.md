@@ -26,6 +26,11 @@ Documentacao canonica do ContextRefactor organizada por audiencia e objetivo.
 - [Qualidade e Testes](./desenvolvedor/qualidade-e-testes.md)
 - [Manutencao e Evolucao](./desenvolvedor/manutencao.md)
 
+### Skills de Agente
+
+- `.claude/skills/mcp_refactor_workflow/SKILL.md`: skill bilingue para orquestrar o fluxo de refatoracao via MCP.
+- `.claude/skills/mcp_refactor_tuning/SKILL.md`: skill bilingue para ajuste fino de custo, precisao e escopo das analises MCP.
+
 ### Operacao
 
 - [Operacao e Troubleshooting](./operacao/troubleshooting.md)
@@ -47,6 +52,7 @@ canonico atual:
   [Configuracao em Clientes/Hosts](./integracao/configuracao-em-clientes.md)
 - Desenvolvedor: comece por [Arquitetura](./desenvolvedor/arquitetura.md) e
   [Setup](./desenvolvedor/setup.md)
+- Customizacao de agente: consulte as skills em `.claude/skills/` para fluxo de refatoracao e tuning avancado
 
 ## Estado atual de capability
 

@@ -205,6 +205,11 @@ mypy context_refactor mcp_server cli --ignore-missing-imports
 
 A documentacao canonica detalhada esta em [docs/INDEX.md](docs/INDEX.md).
 
+O repositorio tambem inclui skills locais para agentes em `.claude/skills/`:
+
+- `.claude/skills/mcp_refactor_workflow/SKILL.md`: orquestracao do fluxo de refatoracao via MCP.
+- `.claude/skills/mcp_refactor_tuning/SKILL.md`: tuning de parametros para custo, precisao e escopo.
+
 Pontos de entrada recomendados:
 
 - [Visao geral](docs/visao-geral.md)
